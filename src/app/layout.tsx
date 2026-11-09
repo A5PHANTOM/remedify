@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Providers } from "@/components/providers";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -39,10 +40,12 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className="h-[100dvh] w-full flex justify-center bg-black overflow-hidden">
-        {/* Mobile viewport container (390px-430px centered frame on desktop, edge-to-edge on iPhone) */}
-        <div className="w-full max-w-[430px] h-[100dvh] bg-[var(--background)] flex flex-col relative overflow-hidden shadow-2xl">
-          {children}
-        </div>
+        <Providers>
+          {/* Mobile viewport container (390px-430px centered frame on desktop, edge-to-edge on iPhone) */}
+          <div className="w-full max-w-[430px] h-[100dvh] bg-[var(--background)] flex flex-col relative overflow-hidden shadow-2xl">
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
   );

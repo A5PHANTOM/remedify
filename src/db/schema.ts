@@ -180,3 +180,4 @@ export const pushSubs = pgTable("push_subs", {
     .notNull()
     .default(sql`now()`),
 });
+
