@@ -108,3 +108,4 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     return false;
   }
 }
+

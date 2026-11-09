@@ -112,6 +112,50 @@ export const dbRepo = {
     return memoryStore.users.get(id) || null;
   },
 
+  async findUserByCalendarToken(token: string): Promise<UserRecord | null> {
+    const cleanToken = token.trim();
+    if (db) {
+      const rows = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.calendarToken, cleanToken))
+        .limit(1);
+      return (rows[0] as unknown as UserRecord) || null;
+    }
+    for (const u of memoryStore.users.values()) {
+      if (u.calendarToken === cleanToken) {
+        return u;
+      }
+    }
+    return null;
+  },
+
+  async regenerateCalendarToken(userId: string): Promise<string> {
+    const newToken = crypto.randomUUID().replace(/-/g, "");
+    if (db) {
+      await db
+        .update(schema.users)
+        .set({ calendarToken: newToken })
+        .where(eq(schema.users.id, userId));
+    } else {
+      const u = memoryStore.users.get(userId);
+      if (u) {
+        u.calendarToken = newToken;
+      }
+    }
+    return newToken;
+  },
+
+  async getCalendarReminders(userId: string): Promise<ReminderRecord[]> {
+    // Only return open reminders from workspaces that have syncToCalendar = true
+    const workspaces = await this.getWorkspaces(userId);
+    const syncedWsIds = new Set(
+      workspaces.filter((w) => w.syncToCalendar).map((w) => w.id)
+    );
+    const allOpen = await this.getReminders(userId, { status: "open" });
+    return allOpen.filter((r) => syncedWsIds.has(r.workspaceId));
+  },
+
   async createOrGetUser(email: string, name?: string | null, image?: string | null): Promise<UserRecord> {
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await this.findUserByEmail(normalizedEmail);

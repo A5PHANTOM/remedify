@@ -300,6 +300,15 @@ export function ReminderDetailModal({
 
             {/* Actions footer */}
             <div className="pt-3 border-t border-zinc-800 shrink-0 space-y-2">
+              <a
+                href={`/api/ics/reminder/${reminder.id}.ics`}
+                download
+                className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 rounded-xl text-xs font-medium flex items-center justify-center space-x-2 transition-all"
+              >
+                <Calendar className="w-4 h-4 text-accent-green" />
+                <span>Export to Apple Calendar (.ics)</span>
+              </a>
+
               <button
                 type="button"
                 onClick={handleSave}
