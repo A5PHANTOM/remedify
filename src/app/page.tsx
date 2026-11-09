@@ -4,12 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
   Plus,
-  Check,
-  Clock,
-  Sparkles,
-  FolderKanban,
-  History,
-  Settings,
   Layers,
   LayoutList,
   Smartphone,
@@ -19,16 +13,25 @@ import {
   Bell,
   Calendar,
   RotateCcw,
-  Loader2,
+  Sparkles,
+  FolderKanban,
+  History,
+  Settings,
 } from "lucide-react";
-import { QuickAddSheet } from "@/components/quick-add-sheet";
+import { CardStack } from "@/components/card-stack";
 import { ReminderListView } from "@/components/reminder-list-view";
+import { QuickAddSheet } from "@/components/quick-add-sheet";
+import { SnoozeModal } from "@/components/snooze-modal";
+import { RescheduleModal } from "@/components/reschedule-modal";
+import { ReminderDetailModal } from "@/components/reminder-detail-modal";
 import { ReminderRecord, WorkspaceRecord } from "@/lib/db-repo";
 
 export default function HomePage() {
   const { data: session } = useSession();
   const [isStandalone, setIsStandalone] = useState(true);
-  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings">(
+    "home"
+  );
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
 
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
@@ -36,7 +39,14 @@ export default function HomePage() {
   const [reminders, setReminders] = useState<ReminderRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modals
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [snoozeTarget, setSnoozeTarget] = useState<ReminderRecord | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] =
+    useState<ReminderRecord | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ReminderRecord | null>(null);
+
+  // Undo Toast state
   const [undoToast, setUndoToast] = useState<{
     reminder: ReminderRecord;
     timer: NodeJS.Timeout;
@@ -46,7 +56,8 @@ export default function HomePage() {
   useEffect(() => {
     const isRunningStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+      (window.navigator as unknown as { standalone?: boolean }).standalone ===
+        true;
     setIsStandalone(isRunningStandalone);
   }, []);
 
@@ -93,56 +104,46 @@ export default function HomePage() {
     setReminders((prev) => [newReminder, ...prev]);
   };
 
-  const handleToggleDone = async (reminder: ReminderRecord) => {
-    const newStatus = reminder.status === "done" ? "open" : "done";
-
+  // Complete action (Swipe right or Checkbox)
+  const handleComplete = async (reminder: ReminderRecord) => {
     // Optimistic update
     setReminders((prev) =>
       prev.map((r) =>
         r.id === reminder.id
-          ? {
-              ...r,
-              status: newStatus,
-              completedAt: newStatus === "done" ? new Date() : null,
-            }
+          ? { ...r, status: "done", completedAt: new Date() }
           : r
       )
     );
 
-    // If marked done, show 5-second undo toast
-    if (newStatus === "done") {
-      if (undoToast) clearTimeout(undoToast.timer);
-      const timer = setTimeout(() => {
-        setUndoToast(null);
-      }, 5000);
-      setUndoToast({ reminder, timer });
-    }
+    // 5-second undo toast
+    if (undoToast) clearTimeout(undoToast.timer);
+    const timer = setTimeout(() => {
+      setUndoToast(null);
+    }, 5000);
+    setUndoToast({ reminder, timer });
 
     try {
       await fetch(`/api/reminders/${reminder.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          action: newStatus === "done" ? "completed" : "reopened",
-        }),
+        body: JSON.stringify({ status: "done", action: "completed" }),
       });
     } catch (e) {
-      console.error("Failed to update status:", e);
-      // Rollback on failure
+      console.error("Failed to mark done:", e);
       setReminders((prev) =>
         prev.map((r) => (r.id === reminder.id ? reminder : r))
       );
     }
   };
 
+  // Undo Complete
   const handleUndo = async () => {
     if (!undoToast) return;
     const { reminder, timer } = undoToast;
     clearTimeout(timer);
     setUndoToast(null);
 
-    // Reopen reminder
+    // Reopen reminder optimistically
     setReminders((prev) =>
       prev.map((r) =>
         r.id === reminder.id ? { ...r, status: "open", completedAt: null } : r
@@ -158,6 +159,67 @@ export default function HomePage() {
     } catch (e) {
       console.error("Failed to undo:", e);
     }
+  };
+
+  // Snooze Action (Swipe left)
+  const handleSnoozed = async (reminderId: string, newDueDate: Date) => {
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.id === reminderId
+          ? {
+              ...r,
+              dueAt: newDueDate,
+              snoozedCount: (r.snoozedCount || 0) + 1,
+            }
+          : r
+      )
+    );
+
+    try {
+      await fetch(`/api/reminders/${reminderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dueAt: newDueDate.toISOString(),
+          action: "snoozed",
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to snooze:", e);
+    }
+  };
+
+  // Reschedule Action (Swipe up)
+  const handleRescheduled = async (reminderId: string, newDueDate: Date) => {
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.id === reminderId ? { ...r, dueAt: newDueDate } : r
+      )
+    );
+
+    try {
+      await fetch(`/api/reminders/${reminderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dueAt: newDueDate.toISOString(),
+          action: "rescheduled",
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to reschedule:", e);
+    }
+  };
+
+  // Detail updated or deleted
+  const handleReminderUpdated = (updated: ReminderRecord) => {
+    setReminders((prev) =>
+      prev.map((r) => (r.id === updated.id ? updated : r))
+    );
+  };
+
+  const handleReminderDeleted = (deletedId: string) => {
+    setReminders((prev) => prev.filter((r) => r.id !== deletedId));
   };
 
   const handleLogout = async () => {
@@ -188,7 +250,11 @@ export default function HomePage() {
           <button
             onClick={() => setViewMode(viewMode === "card" ? "list" : "card")}
             className="p-2 rounded-xl bg-[var(--card)] border border-[var(--border)] text-zinc-400 hover:text-white transition-colors"
-            title={viewMode === "card" ? "Switch to List View" : "Switch to Card View"}
+            title={
+              viewMode === "card"
+                ? "Switch to List View"
+                : "Switch to Card View"
+            }
           >
             {viewMode === "card" ? (
               <LayoutList className="w-5 h-5 text-zinc-200" />
@@ -200,7 +266,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col justify-center items-center py-3 relative overflow-hidden">
+      <main className="flex-1 flex flex-col justify-center items-center py-2 relative overflow-hidden">
         {/* iOS PWA Install Guide */}
         {!isStandalone && (
           <div className="w-full mb-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl text-xs flex items-center justify-between text-blue-200 backdrop-blur-md shrink-0">
@@ -226,59 +292,19 @@ export default function HomePage() {
             {viewMode === "list" ? (
               <ReminderListView
                 reminders={reminders}
-                onToggleDone={handleToggleDone}
+                onToggleDone={(r) =>
+                  r.status === "done" ? handleReminderUpdated({ ...r, status: "open" }) : handleComplete(r)
+                }
+                onOpenDetail={(r) => setDetailTarget(r)}
               />
             ) : (
-              <div className="w-full max-w-[350px] aspect-[4/5] bg-[var(--card)] rounded-3xl border border-[var(--border)] shadow-2xl p-6 flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-accent-blue via-accent-purple to-accent-green" />
-
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      Phase 3 Active
-                    </span>
-                    <span className="text-xs text-zinc-400">
-                      Core Capture Ready
-                    </span>
-                  </div>
-                  <Sparkles className="w-5 h-5 text-accent-blue" />
-                </div>
-
-                <div className="space-y-3 my-auto">
-                  <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-                    Fast Quick-Add
-                  </h2>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Natural language dates enabled with chrono-node. Tap the +
-                    button below to capture reminders in under 5 seconds.
-                  </p>
-                  <div className="pt-2 flex flex-wrap gap-1.5">
-                    <span className="px-2.5 py-1 bg-zinc-800/80 rounded-lg text-[11px] text-zinc-300 border border-zinc-700/50">
-                      ⚡ &lt;150ms Bottom Sheet
-                    </span>
-                    <span className="px-2.5 py-1 bg-zinc-800/80 rounded-lg text-[11px] text-zinc-300 border border-zinc-700/50">
-                      📅 Natural Language Date Chips
-                    </span>
-                    <span className="px-2.5 py-1 bg-zinc-800/80 rounded-lg text-[11px] text-zinc-300 border border-zinc-700/50">
-                      📋 List &amp; Card Toggle
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between text-xs text-zinc-400">
-                  <span>
-                    Total:{" "}
-                    <strong className="text-white">{reminders.length}</strong>{" "}
-                    reminders
-                  </span>
-                  <button
-                    onClick={() => setViewMode("list")}
-                    className="text-accent-blue font-semibold hover:underline"
-                  >
-                    View List →
-                  </button>
-                </div>
-              </div>
+              <CardStack
+                reminders={reminders}
+                onComplete={handleComplete}
+                onSnooze={(r) => setSnoozeTarget(r)}
+                onReschedule={(r) => setRescheduleTarget(r)}
+                onTap={(r) => setDetailTarget(r)}
+              />
             )}
           </div>
         )}
@@ -286,14 +312,15 @@ export default function HomePage() {
         {/* Tab 2: History Tab */}
         {activeTab === "history" && (
           <div className="w-full max-w-[350px] bg-[var(--card)] rounded-3xl border border-[var(--border)] p-6 space-y-4">
-            <h3 className="text-lg font-bold">Activity Log</h3>
+            <h3 className="text-lg font-bold">Activity History</h3>
             <p className="text-xs text-zinc-400">
-              Audit log tracking all changes with diffs (Phase 7).
+              Audit log with old and new values across all workspaces (Phase 7).
             </p>
             <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800 text-xs text-zinc-400 space-y-1">
-              <p className="font-semibold text-zinc-300">Reminders Created</p>
+              <p className="font-semibold text-zinc-300">Active Reminders</p>
               <p className="text-[11px]">
-                {reminders.length} items logged in database.
+                {reminders.filter((r) => r.status === "open").length} open,{" "}
+                {reminders.filter((r) => r.status === "done").length} completed.
               </p>
             </div>
           </div>
@@ -348,7 +375,7 @@ export default function HomePage() {
 
         {/* 5-Second Undo Toast */}
         {undoToast && (
-          <div className="absolute bottom-4 left-4 right-4 bg-zinc-900 border border-zinc-700 text-white p-3 rounded-2xl shadow-2xl flex items-center justify-between text-xs z-30 animate-toast">
+          <div className="absolute bottom-3 left-4 right-4 bg-zinc-900 border border-zinc-700 text-white p-3 rounded-2xl shadow-2xl flex items-center justify-between text-xs z-30 animate-toast">
             <span className="truncate max-w-[200px]">
               &quot;{undoToast.reminder.title}&quot; marked done
             </span>
@@ -407,13 +434,39 @@ export default function HomePage() {
         </button>
       </nav>
 
-      {/* Quick Add Bottom Sheet Modal */}
+      {/* Quick Add Bottom Sheet */}
       <QuickAddSheet
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onReminderCreated={handleReminderCreated}
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
+      />
+
+      {/* Snooze Modal */}
+      <SnoozeModal
+        isOpen={!!snoozeTarget}
+        onClose={() => setSnoozeTarget(null)}
+        reminder={snoozeTarget}
+        onSnoozed={handleSnoozed}
+      />
+
+      {/* Reschedule Modal */}
+      <RescheduleModal
+        isOpen={!!rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+        reminder={rescheduleTarget}
+        onRescheduled={handleRescheduled}
+      />
+
+      {/* Detail & Edit Modal */}
+      <ReminderDetailModal
+        isOpen={!!detailTarget}
+        onClose={() => setDetailTarget(null)}
+        reminder={detailTarget}
+        workspaces={workspaces}
+        onUpdated={handleReminderUpdated}
+        onDeleted={handleReminderDeleted}
       />
     </div>
   );

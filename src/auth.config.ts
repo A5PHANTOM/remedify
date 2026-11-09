@@ -71,3 +71,4 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [], // Configured with full credentials and Google in auth.ts
 };
+
