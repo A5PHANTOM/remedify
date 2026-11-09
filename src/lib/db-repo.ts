@@ -283,6 +283,134 @@ export const dbRepo = {
     return ws && ws.userId === userId ? ws : null;
   },
 
+  async createWorkspace(
+    userId: string,
+    data: {
+      name: string;
+      colour?: string;
+      emoji?: string;
+      syncToCalendar?: boolean;
+    }
+  ): Promise<WorkspaceRecord> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const newWs: WorkspaceRecord = {
+      id,
+      userId,
+      name: data.name.trim(),
+      colour: data.colour || "#0A84FF",
+      emoji: data.emoji || "📁",
+      isMain: false,
+      archived: false,
+      syncToCalendar: data.syncToCalendar ?? true,
+      sortOrder: 1,
+      createdAt: now,
+    };
+
+    if (db) {
+      const [inserted] = await db
+        .insert(schema.workspaces)
+        .values({
+          id: newWs.id,
+          userId: newWs.userId,
+          name: newWs.name,
+          colour: newWs.colour,
+          emoji: newWs.emoji,
+          isMain: false,
+          archived: false,
+          syncToCalendar: newWs.syncToCalendar,
+          sortOrder: newWs.sortOrder,
+          createdAt: now,
+        })
+        .returning();
+      return inserted as unknown as WorkspaceRecord;
+    }
+
+    memoryStore.workspaces.set(id, newWs);
+    return newWs;
+  },
+
+  async updateWorkspace(
+    userId: string,
+    workspaceId: string,
+    updates: Partial<WorkspaceRecord>
+  ): Promise<WorkspaceRecord | null> {
+    const existing = await this.getWorkspaceById(userId, workspaceId);
+    if (!existing) return null;
+
+    // Prevent renaming or archiving the Main workspace
+    if (existing.isMain) {
+      if (updates.archived) return null;
+      if (updates.name && updates.name !== "Main") return null;
+    }
+
+    const updated: WorkspaceRecord = {
+      ...existing,
+      ...updates,
+    };
+
+    if (db) {
+      await db
+        .update(schema.workspaces)
+        .set({
+          name: updated.name,
+          colour: updated.colour,
+          emoji: updated.emoji,
+          archived: updated.archived,
+          syncToCalendar: updated.syncToCalendar,
+          sortOrder: updated.sortOrder,
+        })
+        .where(and(eq(schema.workspaces.id, workspaceId), eq(schema.workspaces.userId, userId)));
+    } else {
+      memoryStore.workspaces.set(workspaceId, updated);
+    }
+
+    return updated;
+  },
+
+  async deleteWorkspace(
+    userId: string,
+    workspaceId: string,
+    reassignToMain: boolean = true
+  ): Promise<boolean> {
+    const existing = await this.getWorkspaceById(userId, workspaceId);
+    if (!existing || existing.isMain) {
+      return false; // Cannot delete Main workspace
+    }
+
+    const mainWs = await this.ensureMainWorkspace(userId);
+
+    if (db) {
+      if (reassignToMain) {
+        await db
+          .update(schema.reminders)
+          .set({ workspaceId: mainWs.id })
+          .where(and(eq(schema.reminders.workspaceId, workspaceId), eq(schema.reminders.userId, userId)));
+      } else {
+        await db
+          .delete(schema.reminders)
+          .where(and(eq(schema.reminders.workspaceId, workspaceId), eq(schema.reminders.userId, userId)));
+      }
+
+      await db
+        .delete(schema.workspaces)
+        .where(and(eq(schema.workspaces.id, workspaceId), eq(schema.workspaces.userId, userId)));
+    } else {
+      for (const [rId, rem] of memoryStore.reminders.entries()) {
+        if (rem.workspaceId === workspaceId && rem.userId === userId) {
+          if (reassignToMain) {
+            memoryStore.reminders.set(rId, { ...rem, workspaceId: mainWs.id });
+          } else {
+            memoryStore.reminders.delete(rId);
+          }
+        }
+      }
+      memoryStore.workspaces.delete(workspaceId);
+    }
+
+    return true;
+  },
+
   // -------------------------------------------------------------------------
   // Reminders
   // -------------------------------------------------------------------------

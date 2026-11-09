@@ -17,6 +17,7 @@ import {
   FolderKanban,
   History,
   Settings,
+  ChevronDown,
 } from "lucide-react";
 import { CardStack } from "@/components/card-stack";
 import { ReminderListView } from "@/components/reminder-list-view";
@@ -24,6 +25,7 @@ import { QuickAddSheet } from "@/components/quick-add-sheet";
 import { SnoozeModal } from "@/components/snooze-modal";
 import { RescheduleModal } from "@/components/reschedule-modal";
 import { ReminderDetailModal } from "@/components/reminder-detail-modal";
+import { WorkspaceModal } from "@/components/workspace-modal";
 import { ReminderRecord, WorkspaceRecord } from "@/lib/db-repo";
 
 export default function HomePage() {
@@ -40,6 +42,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   // Modals
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [snoozeTarget, setSnoozeTarget] = useState<ReminderRecord | null>(null);
   const [rescheduleTarget, setRescheduleTarget] =
@@ -52,14 +55,24 @@ export default function HomePage() {
     timer: NodeJS.Timeout;
   } | null>(null);
 
-  // Standalone detection
+  // Standalone detection & restore saved workspace
   useEffect(() => {
     const isRunningStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone ===
         true;
     setIsStandalone(isRunningStandalone);
+
+    const savedWs = localStorage.getItem("remidify_active_ws");
+    if (savedWs) {
+      setActiveWorkspaceId(savedWs);
+    }
   }, []);
+
+  const handleSelectWorkspace = (id: string) => {
+    setActiveWorkspaceId(id);
+    localStorage.setItem("remidify_active_ws", id);
+  };
 
   // Fetch workspaces & reminders
   const fetchWorkspaces = useCallback(async () => {
@@ -106,7 +119,6 @@ export default function HomePage() {
 
   // Complete action (Swipe right or Checkbox)
   const handleComplete = async (reminder: ReminderRecord) => {
-    // Optimistic update
     setReminders((prev) =>
       prev.map((r) =>
         r.id === reminder.id
@@ -115,7 +127,6 @@ export default function HomePage() {
       )
     );
 
-    // 5-second undo toast
     if (undoToast) clearTimeout(undoToast.timer);
     const timer = setTimeout(() => {
       setUndoToast(null);
@@ -143,7 +154,6 @@ export default function HomePage() {
     clearTimeout(timer);
     setUndoToast(null);
 
-    // Reopen reminder optimistically
     setReminders((prev) =>
       prev.map((r) =>
         r.id === reminder.id ? { ...r, status: "open", completedAt: null } : r
@@ -222,6 +232,22 @@ export default function HomePage() {
     setReminders((prev) => prev.filter((r) => r.id !== deletedId));
   };
 
+  // Workspaces updates
+  const handleWorkspaceCreated = (newWs: WorkspaceRecord) => {
+    setWorkspaces((prev) => [...prev, newWs]);
+  };
+
+  const handleWorkspaceUpdated = (updatedWs: WorkspaceRecord) => {
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === updatedWs.id ? updatedWs : w))
+    );
+  };
+
+  const handleWorkspaceDeleted = (deletedWsId: string) => {
+    setWorkspaces((prev) => prev.filter((w) => w.id !== deletedWsId));
+    fetchReminders();
+  };
+
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/login" });
   };
@@ -231,21 +257,30 @@ export default function HomePage() {
     activeWorkspaceId === "main" ? "Main" : activeWs?.name || "Workspace";
   const activeWsEmoji =
     activeWorkspaceId === "main" ? "📁" : activeWs?.emoji || "📁";
+  const activeWsColour =
+    activeWorkspaceId === "main" ? "#0A84FF" : activeWs?.colour || "#0A84FF";
 
   return (
     <div className="flex-1 flex flex-col justify-between h-full pt-safe pb-safe px-4 select-none relative overflow-hidden">
       {/* Top Header */}
       <header className="flex items-center justify-between py-2 border-b border-[var(--border)] shrink-0">
-        <div className="flex items-center space-x-2 bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm">
-          <span>{activeWsEmoji}</span>
-          <span className="text-sm font-semibold tracking-tight">
-            {activeWsName}
+        {/* Workspace Switcher Button */}
+        <button
+          onClick={() => setIsWorkspaceModalOpen(true)}
+          className="flex items-center space-x-2 bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm hover:border-zinc-700 active:scale-95 transition-all cursor-pointer"
+        >
+          <span
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: activeWsColour }}
+          />
+          <span className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
+            <span>{activeWsEmoji}</span>
+            <span>{activeWsName}</span>
           </span>
-          <span className="text-xs text-zinc-400">
-            {activeWorkspaceId === "main" ? "All Reminders" : "Workspace"}
-          </span>
-        </div>
+          <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+        </button>
 
+        {/* Card / List View Toggle */}
         <div className="flex items-center space-x-1.5">
           <button
             onClick={() => setViewMode(viewMode === "card" ? "list" : "card")}
@@ -293,7 +328,9 @@ export default function HomePage() {
               <ReminderListView
                 reminders={reminders}
                 onToggleDone={(r) =>
-                  r.status === "done" ? handleReminderUpdated({ ...r, status: "open" }) : handleComplete(r)
+                  r.status === "done"
+                    ? handleReminderUpdated({ ...r, status: "open" })
+                    : handleComplete(r)
                 }
                 onOpenDetail={(r) => setDetailTarget(r)}
               />
@@ -317,7 +354,9 @@ export default function HomePage() {
               Audit log with old and new values across all workspaces (Phase 7).
             </p>
             <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800 text-xs text-zinc-400 space-y-1">
-              <p className="font-semibold text-zinc-300">Active Reminders</p>
+              <p className="font-semibold text-zinc-300">
+                Workspace: {activeWsName}
+              </p>
               <p className="text-[11px]">
                 {reminders.filter((r) => r.status === "open").length} open,{" "}
                 {reminders.filter((r) => r.status === "done").length} completed.
@@ -433,6 +472,18 @@ export default function HomePage() {
           <span className="text-[10px] mt-1 font-medium">Settings</span>
         </button>
       </nav>
+
+      {/* Workspace Switcher & Manager Modal */}
+      <WorkspaceModal
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={handleSelectWorkspace}
+        onWorkspaceCreated={handleWorkspaceCreated}
+        onWorkspaceUpdated={handleWorkspaceUpdated}
+        onWorkspaceDeleted={handleWorkspaceDeleted}
+      />
 
       {/* Quick Add Bottom Sheet */}
       <QuickAddSheet
