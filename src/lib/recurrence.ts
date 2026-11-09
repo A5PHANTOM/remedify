@@ -27,3 +27,4 @@ export function computeNextOccurrence(
 
   return next;
 }
+

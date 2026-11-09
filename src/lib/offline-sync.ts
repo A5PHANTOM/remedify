@@ -111,8 +111,8 @@ export async function syncPendingMutations(): Promise<number> {
           item.type === "create"
             ? "POST"
             : item.type === "patch"
-            ? "PATCH"
-            : "DELETE";
+              ? "PATCH"
+              : "DELETE";
 
         const res = await fetch(item.url, {
           method,
@@ -142,3 +142,4 @@ export async function syncPendingMutations(): Promise<number> {
     return 0;
   }
 }
+
