@@ -1,62 +1,36 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
+import { configurePush, pushErrorStatus, pushOptions } from "@/lib/push-server";
 import * as webpush from "web-push";
+import { z } from "zod";
 
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:support@remidify.app",
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-}
-
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!configurePush()) return NextResponse.json({ error: "Notifications are not configured. Please try again later." }, { status: 503 });
+    const parsed = z.object({ endpoint: z.string().url() }).safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "Reconnect this device before sending a test." }, { status: 400 });
     const subscriptions = await dbRepo.getPushSubscriptionsForUser(user.id);
-    if (subscriptions.length === 0) {
-      return NextResponse.json(
-        { error: "No registered push devices found. Please enable notifications on this device first." },
-        { status: 400 }
-      );
-    }
-
-    const payload = JSON.stringify({
-      title: "Remidify Alert Test",
-      body: "⚡ Test notification received! Reliable alerts are active.",
-      url: "/",
-      tag: "test-notification",
-    });
-
-    let sent = 0;
-    for (const sub of subscriptions) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          payload
-        );
-        sent++;
-      } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
-          await dbRepo.removePushSubscription(sub.endpoint);
-        }
+    const sub = subscriptions.find((item) => item.endpoint === parsed.data.endpoint);
+    if (!sub) return NextResponse.json({ error: "This device is not connected. Enable notifications again." }, { status: 404 });
+    try {
+      await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify({
+        title: "A little nudge from Remidify", body: "You’re connected. Your reminders have a home on your lock screen.",
+        url: "/", tag: "remidify-test",
+      }), { ...pushOptions, TTL: 60 });
+    } catch (error) {
+      const status = pushErrorStatus(error);
+      if (status === 404 || status === 410) {
+        await dbRepo.removePushSubscription(sub.endpoint, user.id);
+        return NextResponse.json({ error: "This connection expired. Enable notifications again." }, { status: 410 });
       }
+      console.error("Test push rejected", { status });
+      return NextResponse.json({ error: "The notification service couldn’t accept the test. Please try again." }, { status: 502 });
     }
-
-    return NextResponse.json({ success: true, sent });
-  } catch (err: unknown) {
-    console.error("Failed to send test push:", err);
-    return NextResponse.json(
-      { error: "Failed to send test notification" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, sent: 1 });
+  } catch {
+    return NextResponse.json({ error: "Couldn’t send the test notification." }, { status: 500 });
   }
 }

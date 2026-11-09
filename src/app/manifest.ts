@@ -4,11 +4,13 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Remidify",
     short_name: "Remidify",
-    description: "Fast swipe-card reminders with workspaces.",
+    description: "A little more headspace. Reminders for your everyday.",
+    id: "/",
+    scope: "/",
     start_url: "/",
     display: "standalone",
-    background_color: "#09090B",
-    theme_color: "#09090B",
+    background_color: "#101113",
+    theme_color: "#101113",
     orientation: "portrait",
     icons: [
       {

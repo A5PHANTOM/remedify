@@ -1,85 +1,51 @@
 import { NextResponse } from "next/server";
 import { dbRepo } from "@/lib/db-repo";
+import { configurePush, pushErrorStatus, pushOptions } from "@/lib/push-server";
 import * as webpush from "web-push";
 
-// Configure web-push with VAPID keys if provided
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:support@remidify.app",
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-}
+export const maxDuration = 60;
 
 export async function GET(req: Request) {
+  const secret = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace(/^Bearer /, "");
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!configurePush()) return NextResponse.json({ error: "Push is not configured" }, { status: 503 });
   try {
-    // Verify x-cron-secret header
-    const cronSecretHeader =
-      req.headers.get("x-cron-secret") ||
-      req.headers.get("authorization")?.replace("Bearer ", "");
-
-    const expectedSecret = process.env.CRON_SECRET;
-    if (expectedSecret && cronSecretHeader !== expectedSecret) {
-      return NextResponse.json({ error: "Forbidden: invalid cron secret" }, { status: 403 });
-    }
-
-    // Select open reminders due now where notified_at is null (idempotent)
     const dueReminders = await dbRepo.getDueRemindersForDispatch();
-
-    let totalNotificationsSent = 0;
+    let notificationsSent = 0;
     let prunedSubscriptions = 0;
-
+    let remindersNotified = 0;
+    const started = Date.now();
     for (const item of dueReminders) {
+      // Leave the rest pending for the next invocation instead of timing out mid-batch.
+      if (Date.now() - started > 40000) break;
       const subscriptions = await dbRepo.getPushSubscriptionsForUser(item.userId);
-
-      const payload = JSON.stringify({
-        title: "Remidify",
-        body: item.title,
-        url: `/?reminderId=${item.id}`,
-        reminderId: item.id,
-        tag: `remidify-${item.id}`,
-      });
-
-      for (const sub of subscriptions) {
+      const payload = JSON.stringify({ title: "Remidify", body: item.title,
+        url: `/?reminderId=${item.id}`, reminderId: item.id, tag: `remidify-${item.id}` });
+      const results = await Promise.all(subscriptions.map(async (sub) => {
         try {
-          await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: sub.p256dh,
-                auth: sub.auth,
-              },
-            },
-            payload
-          );
-          totalNotificationsSent++;
-        } catch (err: any) {
-          // PRD requirement: Remove push subscriptions that return HTTP 404 or 410
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
-            await dbRepo.removePushSubscription(sub.endpoint);
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, pushOptions);
+          notificationsSent++;
+          return true;
+        } catch (error) {
+          const status = pushErrorStatus(error);
+          if (status === 404 || status === 410) {
+            await dbRepo.removePushSubscription(sub.endpoint, item.userId);
             prunedSubscriptions++;
-          } else {
-            console.error(`[Push Error] Endpoint: ${sub.endpoint}`, err);
-          }
+          } else console.error("Reminder push failed", { reminderId: item.id, status });
+          return false;
         }
+      }));
+      // A missing/expired device or a transient provider failure must not consume a reminder.
+      if (results.some(Boolean)) {
+        await dbRepo.markReminderNotified(item.id);
+        remindersNotified++;
       }
-
-      // Mark notified to guarantee no duplicates
-      await dbRepo.markReminderNotified(item.id);
     }
-
-    return NextResponse.json({
-      success: true,
-      dueRemindersProcessed: dueReminders.length,
-      notificationsSent: totalNotificationsSent,
-      prunedSubscriptions,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err: unknown) {
-    console.error("Cron dispatch execution failed:", err);
-    return NextResponse.json(
-      { error: "Internal server error during dispatch" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, remindersNotified, notificationsSent, prunedSubscriptions, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error("Reminder dispatch failed", error);
+    return NextResponse.json({ error: "Reminder dispatch failed" }, { status: 500 });
   }
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Layers, Bell, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -97,28 +97,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col justify-between h-full pt-safe pb-safe px-6 select-none bg-[var(--background)]">
-      {/* Top Branding */}
-      <div className="pt-8 flex flex-col items-center text-center space-y-3">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accent-blue via-indigo-600 to-accent-green p-0.5 shadow-lg shadow-blue-500/20 flex items-center justify-center">
-          <div className="w-full h-full bg-zinc-950 rounded-[14px] flex items-center justify-center">
-            <Sparkles className="w-8 h-8 text-accent-blue" />
-          </div>
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-            Remidify
-          </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            Fast swipe reminders for iPhone
-          </p>
-        </div>
-      </div>
-
-      {/* Auth Card Form */}
-      <div className="w-full bg-[var(--card)] border border-[var(--border)] rounded-3xl p-6 shadow-xl space-y-5 my-auto">
+    <div className="login-shell">
+      <header className="login-brand"><a className="wordmark" href="/login"><span className="brand-mark"><Layers size={20} /></span>remidify<span className="brand-dot">.</span></a><span>Room to breathe</span></header>
+      <section className="login-hero"><p className="eyebrow">FOR THE THINGS THAT MATTER</p><h1>Less to hold.<br /><span>More to live.</span></h1><p>A thoughtful little home for your reminders. Clear your mind. Enjoy your day.</p></section>
+      <div className="login-preview" aria-label="Example reminder notification"><div><Bell size={14} /> A LITTLE NUDGE <span>now</span></div><strong>Make time for a little you.</strong><p>The important things deserve a gentle reminder.</p></div>
+      <div className="login-form-card space-y-5">
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center space-x-2 text-red-400 text-xs">
+          <div role="alert" className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center space-x-2 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -138,7 +123,7 @@ export default function LoginPage() {
                 htmlFor="email-input"
                 className="block text-xs font-semibold text-zinc-300 mb-1.5"
               >
-                Sign in with Email
+                Your email address
               </label>
               <div className="relative">
                 <input
@@ -157,13 +142,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white font-semibold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50"
+              className="login-submit w-full h-12 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white font-semibold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <span>Send 6-Digit Code</span>
+                  <span>Continue with email</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -177,7 +162,7 @@ export default function LoginPage() {
                   htmlFor="code-input"
                   className="text-xs font-semibold text-zinc-300"
                 >
-                  Enter 6-Digit Code
+                  Check your inbox
                 </label>
                 <button
                   type="button"
@@ -197,6 +182,7 @@ export default function LoginPage() {
                 id="code-input"
                 type="text"
                 pattern="[0-9]*"
+                autoComplete="one-time-code"
                 inputMode="numeric"
                 maxLength={6}
                 value={code}
@@ -211,13 +197,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-accent-green hover:bg-emerald-600 active:scale-[0.98] text-white font-semibold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50"
+              className="login-submit w-full h-12 bg-accent-green hover:bg-emerald-600 active:scale-[0.98] text-white font-semibold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <span>Verify & Sign In</span>
+                  <span>Let’s get you settled</span>
                   <CheckCircle2 className="w-4 h-4" />
                 </>
               )}
@@ -263,9 +249,9 @@ export default function LoginPage() {
       </div>
 
       {/* Persistent Sign-In Notice */}
-      <div className="pb-4 flex items-center justify-center space-x-2 text-zinc-500 text-[11px] text-center">
-        <ShieldCheck className="w-4 h-4 text-accent-blue/70 shrink-0" />
-        <span>Stay signed in for 365 days inside the installed app</span>
+      <div className="login-footer">
+        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+        <span>Your space. Securely yours.</span>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   motion,
   useMotionValue,
@@ -146,6 +146,7 @@ function InteractiveCard({
   onReschedule,
   onTap,
 }: InteractiveCardProps) {
+  const dragged = useRef(false);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -194,16 +195,14 @@ function InteractiveCard({
     // Swipe Left -> Snooze
     if (info.offset.x < -thresholdX) {
       triggerHaptic();
-      setExitDirection("left");
-      setTimeout(() => onSnooze(reminder), 140);
+      onSnooze(reminder);
       return;
     }
 
     // Swipe Up -> Reschedule
     if (info.offset.y < -thresholdY) {
       triggerHaptic();
-      setExitDirection("up");
-      setTimeout(() => onReschedule(reminder), 140);
+      onReschedule(reminder);
       return;
     }
   };
@@ -217,11 +216,12 @@ function InteractiveCard({
         y,
         rotate,
         rotateY,
-        touchAction: "pan-y",
+        touchAction: "none",
       }}
       drag
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
       dragElastic={0.75}
+      onDragStart={() => { dragged.current = true; }}
       onDragEnd={handleDragEnd}
       whileTap={{ scale: 0.985 }}
       initial={{ scale: 0.94, opacity: 0, y: 14 }}
@@ -239,7 +239,8 @@ function InteractiveCard({
         transition: { duration: 0.22, ease: "easeOut" },
       }}
       transition={{ type: "spring", stiffness: 380, damping: 28 }}
-      onClick={() => onTap(reminder)}
+      onPointerDown={() => { dragged.current = false; }}
+      onClick={() => { if (!dragged.current) onTap(reminder); }}
       className="absolute inset-0 glass-panel-elevated rounded-[36px] p-6 flex flex-col justify-between cursor-grab active:cursor-grabbing select-none overflow-hidden"
     >
       {/* Specular Inner Highlight Overlay */}
@@ -376,17 +377,10 @@ function InteractiveCard({
         </div>
       </div>
 
-      {/* Card Footer Gestures Legend */}
-      <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] z-10">
-        <span className="flex items-center gap-1 text-emerald-400 font-medium">
-          <ArrowRight className="w-3 h-3" /> Done
-        </span>
-        <span className="flex items-center gap-1 text-amber-400 font-medium">
-          <ArrowLeft className="w-3 h-3" /> Snooze
-        </span>
-        <span className="flex items-center gap-1 text-blue-400 font-medium">
-          <ArrowUp className="w-3 h-3" /> Reschedule
-        </span>
+      <div className="pt-3 border-t border-white/10 grid grid-cols-3 gap-1 text-[11px] z-10" onPointerDown={(e) => e.stopPropagation()}>
+        <button className="touch-target flex flex-col items-center justify-center gap-1 text-emerald-300" onClick={(e) => { e.stopPropagation(); onComplete(reminder); }}><Check size={18} />Done</button>
+        <button className="touch-target flex flex-col items-center justify-center gap-1 text-amber-200" onClick={(e) => { e.stopPropagation(); onSnooze(reminder); }}><Clock size={18} />Snooze</button>
+        <button className="touch-target flex flex-col items-center justify-center gap-1 text-violet-200" onClick={(e) => { e.stopPropagation(); onReschedule(reminder); }}><Calendar size={18} />Move</button>
       </div>
     </motion.div>
   );

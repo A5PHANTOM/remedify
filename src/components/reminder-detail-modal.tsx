@@ -1,5 +1,7 @@
 "use client";
 
+import { useDialog } from "@/hooks/use-dialog";
+
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -34,6 +36,7 @@ export function ReminderDetailModal({
   onUpdated,
   onDeleted,
 }: ReminderDetailModalProps) {
+  const dialogRef = useDialog(isOpen, onClose);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [dueDateStr, setDueDateStr] = useState("");
@@ -137,7 +140,11 @@ export function ReminderDetailModal({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[90dvh] overflow-hidden"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit reminder"
+            className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto sheet-surface bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[90dvh] overflow-hidden"
           >
             <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0" />
 
@@ -152,6 +159,7 @@ export function ReminderDetailModal({
               </span>
               <button
                 onClick={onClose}
+                aria-label="Close edit reminder"
                 className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />

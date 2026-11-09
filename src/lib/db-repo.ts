@@ -806,13 +806,14 @@ export const dbRepo = {
     return subRecord;
   },
 
-  async removePushSubscription(endpoint: string): Promise<boolean> {
+  async removePushSubscription(endpoint: string, userId?: string): Promise<boolean> {
     if (db) {
       await db
         .delete(schema.pushSubs)
-        .where(eq(schema.pushSubs.endpoint, endpoint));
+        .where(userId ? and(eq(schema.pushSubs.endpoint, endpoint), eq(schema.pushSubs.userId, userId)) : eq(schema.pushSubs.endpoint, endpoint));
       return true;
     }
+    if (userId && memoryStore.pushSubs.get(endpoint)?.userId !== userId) return false;
     return memoryStore.pushSubs.delete(endpoint);
   },
 

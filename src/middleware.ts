@@ -15,7 +15,9 @@ export function middleware(request: NextRequest) {
     pathname === "/manifest.json" ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/apple-touch-icon.png" ||
-    pathname === "/favicon.ico";
+    pathname === "/favicon.ico" ||
+    pathname === "/sw.js" ||
+    pathname === "/api/cron/dispatch"; // Authenticated by CRON_SECRET in the route.
 
   if (isPublicAsset) {
     return NextResponse.next();
@@ -23,6 +25,7 @@ export function middleware(request: NextRequest) {
 
   // Unauthenticated user attempting to access protected route -> redirect to /login
   if (!sessionToken && !isAuthPage) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

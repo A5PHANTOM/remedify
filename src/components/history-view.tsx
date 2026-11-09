@@ -99,7 +99,7 @@ export function HistoryView({
   };
 
   return (
-    <div className="w-full max-w-[360px] h-full flex flex-col glass-panel-elevated rounded-[32px] p-4 overflow-hidden">
+    <div className="w-full flex flex-col glass-panel rounded-[22px] p-4">
       {/* Header & Filter Pills */}
       <div className="pb-3 border-b border-white/10 space-y-2.5 shrink-0">
         <div className="flex items-center justify-between">
@@ -125,7 +125,7 @@ export function HistoryView({
             <button
               key={chip.id}
               onClick={() => setSelectedActionFilter(chip.id)}
-              className={`px-3 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all ${
+              className={`min-h-11 px-3 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all ${
                 selectedActionFilter === chip.id
                   ? "bg-blue-500/25 border-blue-400 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
                   : "glass-pill text-zinc-400 hover:text-white"

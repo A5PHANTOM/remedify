@@ -1,5 +1,7 @@
 "use client";
 
+import { useDialog } from "@/hooks/use-dialog";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, X, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
@@ -18,6 +20,7 @@ export function RescheduleModal({
   reminder,
   onRescheduled,
 }: RescheduleModalProps) {
+  const dialogRef = useDialog(isOpen, onClose);
   const [showCustom, setShowCustom] = useState(false);
   const [customDate, setCustomDate] = useState("");
 
@@ -81,7 +84,11 @@ export function RescheduleModal({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Reschedule reminder"
+            className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto sheet-surface bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
           >
             <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3" />
 
@@ -99,6 +106,7 @@ export function RescheduleModal({
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close reschedule reminder"
                 className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
@@ -131,6 +139,7 @@ export function RescheduleModal({
               {showCustom && (
                 <form onSubmit={handleCustomSubmit} className="pt-2 space-y-3">
                   <input
+                    aria-label="Reminder date and time"
                     type="datetime-local"
                     value={customDate}
                     onChange={(e) => setCustomDate(e.target.value)}

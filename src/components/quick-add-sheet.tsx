@@ -1,5 +1,7 @@
 "use client";
 
+import { useDialog } from "@/hooks/use-dialog";
+
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -40,6 +42,7 @@ export function QuickAddSheet({
   workspaces,
   activeWorkspaceId,
 }: QuickAddSheetProps) {
+  const dialogRef = useDialog(isOpen, onClose);
   const inputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
@@ -114,6 +117,7 @@ export function QuickAddSheet({
       return;
     }
 
+    if (saving) return;
     setSaving(true);
     try {
       const res = await fetch("/api/reminders", {
@@ -178,7 +182,11 @@ export function QuickAddSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[85dvh] overflow-hidden"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add a reminder"
+            className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto sheet-surface bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[85dvh] overflow-hidden"
           >
             {/* Grab Handle */}
             <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0" />
@@ -186,11 +194,12 @@ export function QuickAddSheet({
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-400" /> Fast Capture
+                <Sparkles className="w-4 h-4 text-blue-400" /> A little reminder
               </span>
               <button
                 type="button"
                 onClick={onClose}
+                aria-label="Close reminder editor"
                 className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white active:scale-95 transition-all"
               >
                 <X className="w-4 h-4" />
@@ -212,6 +221,7 @@ export function QuickAddSheet({
               {/* Title Input with Glass Aesthetics */}
               <div>
                 <input
+                  aria-label="What would you like to remember?"
                   ref={inputRef}
                   type="text"
                   value={title}
@@ -253,6 +263,7 @@ export function QuickAddSheet({
                     Select exact date and time:
                   </label>
                   <input
+                    aria-label="Reminder date and time"
                     type="datetime-local"
                     value={
                       new Date(
