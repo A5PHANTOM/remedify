@@ -38,3 +38,4 @@ export async function GET(
     return new Response("Internal server error", { status: 500 });
   }
 }
+

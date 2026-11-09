@@ -79,3 +79,4 @@ export function generateCalendarFeedICS(
 export function generateSingleReminderICS(item: ReminderRecord): string {
   return generateCalendarFeedICS([item], `Remidify - ${item.title}`);
 }
+

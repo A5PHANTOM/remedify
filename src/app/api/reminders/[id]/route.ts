@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { dbRepo } from "@/lib/db-repo";
+import { computeNextOccurrence } from "@/lib/recurrence";
 import { z } from "zod";
 
 const updateReminderSchema = z.object({
@@ -71,7 +72,25 @@ export async function PATCH(
       action
     );
 
-    return NextResponse.json({ reminder: updated });
+    let nextOccurrence = null;
+    // PRD Section 4.4: Repeat rules: when a repeating reminder is marked done, create the next occurrence
+    if (updates.status === "done" && existing.repeatRule) {
+      const nextDue = computeNextOccurrence(
+        existing.dueAt,
+        existing.repeatRule as "daily" | "weekly" | "monthly"
+      );
+      nextOccurrence = await dbRepo.createReminder({
+        userId: session.user.id,
+        workspaceId: existing.workspaceId,
+        title: existing.title,
+        note: existing.note,
+        dueAt: nextDue,
+        priority: existing.priority,
+        repeatRule: existing.repeatRule,
+      });
+    }
+
+    return NextResponse.json({ reminder: updated, nextOccurrence });
   } catch (err: unknown) {
     console.error("Failed to update reminder:", err);
     return NextResponse.json(

@@ -25,6 +25,7 @@ import {
   Copy,
   ExternalLink,
   RefreshCw,
+  WifiOff,
 } from "lucide-react";
 import { CardStack } from "@/components/card-stack";
 import { ReminderListView } from "@/components/reminder-list-view";
@@ -36,6 +37,14 @@ import { WorkspaceModal } from "@/components/workspace-modal";
 import { HistoryView } from "@/components/history-view";
 import { ReminderRecord, WorkspaceRecord } from "@/lib/db-repo";
 import { registerServiceWorker, subscribeToPush } from "@/lib/push-client";
+import {
+  getCachedReminders,
+  setCachedReminders,
+  getCachedWorkspaces,
+  setCachedWorkspaces,
+  enqueueOfflineMutation,
+  syncPendingMutations,
+} from "@/lib/offline-sync";
 
 export default function HomePage() {
   const { data: session } = useSession();
@@ -57,6 +66,9 @@ export default function HomePage() {
   const [testingPush, setTestingPush] = useState(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
 
+  // Offline status & pending mutations
+  const [isOnline, setIsOnline] = useState(true);
+
   // Calendar Feed state
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
   const [copiedFeed, setCopiedFeed] = useState(false);
@@ -76,7 +88,7 @@ export default function HomePage() {
     timer: NodeJS.Timeout;
   } | null>(null);
 
-  // Standalone detection & restore saved workspace
+  // Stale-while-revalidate: load initial cached data immediately on startup
   useEffect(() => {
     const isRunningStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -89,11 +101,44 @@ export default function HomePage() {
       setActiveWorkspaceId(savedWs);
     }
 
-    // Register service worker
-    registerServiceWorker();
+    // Load from cache first for instant opening
+    const cachedWs = getCachedWorkspaces();
+    if (cachedWs.length > 0) {
+      setWorkspaces(cachedWs);
+    }
+    const cachedRem = getCachedReminders();
+    if (cachedRem.length > 0) {
+      setReminders(cachedRem);
+      setLoading(false);
+    }
 
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationPermission(Notification.permission);
+    // Online / Offline listener
+    if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine);
+      const handleOnline = async () => {
+        setIsOnline(true);
+        const synced = await syncPendingMutations();
+        if (synced > 0) {
+          fetchReminders();
+          setPushStatusMessage(`Synced ${synced} offline change(s).`);
+        }
+      };
+      const handleOffline = () => setIsOnline(false);
+
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+
+      // Register service worker
+      registerServiceWorker();
+
+      if ("Notification" in window) {
+        setNotificationPermission(Notification.permission);
+      }
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
     }
   }, []);
 
@@ -108,7 +153,9 @@ export default function HomePage() {
       const res = await fetch("/api/workspaces");
       if (res.ok) {
         const data = await res.json();
-        setWorkspaces(data.workspaces || []);
+        const wsList = data.workspaces || [];
+        setWorkspaces(wsList);
+        setCachedWorkspaces(wsList);
       }
     } catch (e) {
       console.error("Failed to load workspaces:", e);
@@ -125,7 +172,9 @@ export default function HomePage() {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setReminders(data.reminders || []);
+        const remList = data.reminders || [];
+        setReminders(remList);
+        setCachedReminders(remList);
       }
     } catch (e) {
       console.error("Failed to load reminders:", e);
@@ -171,18 +220,29 @@ export default function HomePage() {
   };
 
   const handleReminderCreated = (newReminder: ReminderRecord) => {
-    setReminders((prev) => [newReminder, ...prev]);
+    setReminders((prev) => {
+      const next = [newReminder, ...prev];
+      setCachedReminders(next);
+      return next;
+    });
+
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      enqueueOfflineMutation("create", "/api/reminders", newReminder);
+      setPushStatusMessage("Saved offline. Will sync when reconnected.");
+    }
   };
 
   // Complete action (Swipe right or Checkbox)
   const handleComplete = async (reminder: ReminderRecord) => {
-    setReminders((prev) =>
-      prev.map((r) =>
+    setReminders((prev) => {
+      const updated = prev.map((r) =>
         r.id === reminder.id
-          ? { ...r, status: "done", completedAt: new Date() }
+          ? { ...r, status: "done" as const, completedAt: new Date() }
           : r
-      )
-    );
+      );
+      setCachedReminders(updated);
+      return updated;
+    });
 
     if (undoToast) clearTimeout(undoToast.timer);
     const timer = setTimeout(() => {
@@ -190,17 +250,38 @@ export default function HomePage() {
     }, 5000);
     setUndoToast({ reminder, timer });
 
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      enqueueOfflineMutation("patch", `/api/reminders/${reminder.id}`, {
+        status: "done",
+        action: "completed",
+      });
+      return;
+    }
+
     try {
-      await fetch(`/api/reminders/${reminder.id}`, {
+      const res = await fetch(`/api/reminders/${reminder.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "done", action: "completed" }),
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        // If server spawned next occurrence of repeating reminder, add it to state immediately
+        if (data.nextOccurrence) {
+          setReminders((prev) => {
+            const next = [data.nextOccurrence, ...prev];
+            setCachedReminders(next);
+            return next;
+          });
+        }
+      }
     } catch (e) {
       console.error("Failed to mark done:", e);
-      setReminders((prev) =>
-        prev.map((r) => (r.id === reminder.id ? reminder : r))
-      );
+      enqueueOfflineMutation("patch", `/api/reminders/${reminder.id}`, {
+        status: "done",
+        action: "completed",
+      });
     }
   };
 
@@ -362,20 +443,28 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col justify-between h-full pt-safe pb-safe px-4 select-none relative overflow-hidden">
       {/* Top Header */}
       <header className="flex items-center justify-between py-2 border-b border-[var(--border)] shrink-0">
-        <button
-          onClick={() => setIsWorkspaceModalOpen(true)}
-          className="flex items-center space-x-2 bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm hover:border-zinc-700 active:scale-95 transition-all cursor-pointer"
-        >
-          <span
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: activeWsColour }}
-          />
-          <span className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
-            <span>{activeWsEmoji}</span>
-            <span>{activeWsName}</span>
-          </span>
-          <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setIsWorkspaceModalOpen(true)}
+            className="flex items-center space-x-2 bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm hover:border-zinc-700 active:scale-95 transition-all cursor-pointer"
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: activeWsColour }}
+            />
+            <span className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
+              <span>{activeWsEmoji}</span>
+              <span>{activeWsName}</span>
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+          </button>
+
+          {!isOnline && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
+              <WifiOff className="w-3 h-3" /> Offline
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center space-x-1.5">
           <button
