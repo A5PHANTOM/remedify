@@ -11,6 +11,7 @@ import {
   User,
   Shield,
   Bell,
+  BellRing,
   Calendar,
   RotateCcw,
   Sparkles,
@@ -18,6 +19,9 @@ import {
   History,
   Settings,
   ChevronDown,
+  CheckCircle2,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { CardStack } from "@/components/card-stack";
 import { ReminderListView } from "@/components/reminder-list-view";
@@ -27,6 +31,7 @@ import { RescheduleModal } from "@/components/reschedule-modal";
 import { ReminderDetailModal } from "@/components/reminder-detail-modal";
 import { WorkspaceModal } from "@/components/workspace-modal";
 import { ReminderRecord, WorkspaceRecord } from "@/lib/db-repo";
+import { registerServiceWorker, subscribeToPush } from "@/lib/push-client";
 
 export default function HomePage() {
   const { data: session } = useSession();
@@ -40,6 +45,13 @@ export default function HomePage() {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>("main");
   const [reminders, setReminders] = useState<ReminderRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Push notifications state
+  const [notificationPermission, setNotificationPermission] =
+    useState<string>("default");
+  const [enablingPush, setEnablingPush] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
 
   // Modals
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
@@ -66,6 +78,13 @@ export default function HomePage() {
     const savedWs = localStorage.getItem("remidify_active_ws");
     if (savedWs) {
       setActiveWorkspaceId(savedWs);
+    }
+
+    // Register service worker
+    registerServiceWorker();
+
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission);
     }
   }, []);
 
@@ -248,6 +267,47 @@ export default function HomePage() {
     fetchReminders();
   };
 
+  // Web Push Handlers
+  const handleEnablePush = async () => {
+    setEnablingPush(true);
+    setPushStatusMessage(null);
+    try {
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        throw new Error("VAPID public key not configured in environment");
+      }
+      const res = await subscribeToPush(vapidKey);
+      if (res.success) {
+        setNotificationPermission("granted");
+        setPushStatusMessage("Web Push notifications enabled successfully!");
+      } else {
+        setPushStatusMessage(res.error || "Permission not granted");
+      }
+    } catch (e: any) {
+      setPushStatusMessage(e?.message || "Failed to enable notifications");
+    } finally {
+      setEnablingPush(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestingPush(true);
+    setPushStatusMessage(null);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setPushStatusMessage(`Test notification dispatched! (${data.sent} device)`);
+      } else {
+        setPushStatusMessage(data.error || "Failed to dispatch test notification");
+      }
+    } catch {
+      setPushStatusMessage("Error sending test notification");
+    } finally {
+      setTestingPush(false);
+    }
+  };
+
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/login" });
   };
@@ -264,7 +324,6 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col justify-between h-full pt-safe pb-safe px-4 select-none relative overflow-hidden">
       {/* Top Header */}
       <header className="flex items-center justify-between py-2 border-b border-[var(--border)] shrink-0">
-        {/* Workspace Switcher Button */}
         <button
           onClick={() => setIsWorkspaceModalOpen(true)}
           className="flex items-center space-x-2 bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)] shadow-sm hover:border-zinc-700 active:scale-95 transition-all cursor-pointer"
@@ -280,7 +339,6 @@ export default function HomePage() {
           <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
         </button>
 
-        {/* Card / List View Toggle */}
         <div className="flex items-center space-x-1.5">
           <button
             onClick={() => setViewMode(viewMode === "card" ? "list" : "card")}
@@ -367,7 +425,7 @@ export default function HomePage() {
 
         {/* Tab 3: Settings */}
         {activeTab === "settings" && (
-          <div className="w-full max-w-[350px] bg-[var(--card)] rounded-3xl border border-[var(--border)] p-5 space-y-4">
+          <div className="w-full max-w-[350px] bg-[var(--card)] rounded-3xl border border-[var(--border)] p-5 space-y-3.5 overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
               <h3 className="text-base font-bold">Settings</h3>
               <span className="text-[11px] text-emerald-400 flex items-center gap-1">
@@ -375,7 +433,15 @@ export default function HomePage() {
               </span>
             </div>
 
+            {pushStatusMessage && (
+              <div className="p-2.5 bg-blue-500/15 border border-blue-500/30 rounded-xl text-blue-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+                <span className="truncate">{pushStatusMessage}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
+              {/* Account Card */}
               <div className="p-3 bg-zinc-900/70 rounded-xl border border-[var(--border)]">
                 <p className="text-[11px] text-zinc-500 uppercase tracking-wider">
                   Signed In As
@@ -385,22 +451,74 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="p-3 bg-zinc-900/70 rounded-xl border border-[var(--border)] space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-2 text-zinc-300">
-                    <Bell className="w-4 h-4 text-accent-blue" /> Notifications
+              {/* Push Notifications Section */}
+              <div className="p-3 bg-zinc-900/70 rounded-xl border border-[var(--border)] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BellRing className="w-4 h-4 text-accent-blue" />
+                    <span className="text-xs font-semibold text-white">
+                      iPhone Web Push
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      notificationPermission === "granted"
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                        : "bg-zinc-800 text-zinc-400"
+                    }`}
+                  >
+                    {notificationPermission === "granted" ? "Active" : "Disabled"}
                   </span>
-                  <span className="text-[11px] text-zinc-500">Phase 6</span>
                 </div>
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-800">
-                  <span className="flex items-center gap-2 text-zinc-300">
-                    <Calendar className="w-4 h-4 text-accent-green" /> Apple
-                    Calendar
-                  </span>
-                  <span className="text-[11px] text-zinc-500">Phase 7</span>
-                </div>
+
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Web Push alerts dispatched within 60s of due time. iOS requires
+                  the app to be installed to the Home Screen.
+                </p>
+
+                {notificationPermission !== "granted" ? (
+                  <button
+                    onClick={handleEnablePush}
+                    disabled={enablingPush}
+                    className="w-full py-2.5 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-blue-500/20"
+                  >
+                    {enablingPush ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Bell className="w-4 h-4" />
+                        <span>Enable Push Alerts</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendTestPush}
+                    disabled={testingPush}
+                    className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] text-zinc-200 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition-all"
+                  >
+                    {testingPush ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Test Notification</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
+              {/* Calendar Feed Preview */}
+              <div className="p-3 bg-zinc-900/70 rounded-xl border border-[var(--border)] flex items-center justify-between text-xs">
+                <span className="flex items-center gap-2 text-zinc-300">
+                  <Calendar className="w-4 h-4 text-accent-green" /> Apple
+                  Calendar (ICS)
+                </span>
+                <span className="text-[11px] text-zinc-500">Phase 7</span>
+              </div>
+
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
                 className="w-full py-3 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all active:scale-[0.98]"

@@ -1,5 +1,5 @@
 import { db, schema } from "@/db";
-import { eq, and, desc, asc, lte, gte } from "drizzle-orm";
+import { eq, and, desc, asc, lte, gte, isNull } from "drizzle-orm";
 
 export interface UserRecord {
   id: string;
@@ -57,6 +57,16 @@ export interface ActivityLogRecord {
   createdAt: Date;
 }
 
+export interface PushSubscriptionRecord {
+  id: string;
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent: string | null;
+  createdAt: Date;
+}
+
 // In-memory fallback cache for development when DATABASE_URL is not yet provided
 const memoryStore = {
   users: new Map<string, UserRecord>(),
@@ -64,6 +74,7 @@ const memoryStore = {
   workspaces: new Map<string, WorkspaceRecord>(),
   reminders: new Map<string, ReminderRecord>(),
   activityLog: [] as ActivityLogRecord[],
+  pushSubs: new Map<string, PushSubscriptionRecord>(),
 };
 
 export const dbRepo = {
@@ -697,5 +708,143 @@ export const dbRepo = {
     return memoryStore.activityLog
       .filter((log) => log.userId === userId && (!reminderId || log.reminderId === reminderId))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  },
+
+  // -------------------------------------------------------------------------
+  // Push Subscriptions & Dispatch
+  // -------------------------------------------------------------------------
+  async savePushSubscription(
+    userId: string,
+    data: {
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      userAgent?: string | null;
+    }
+  ): Promise<PushSubscriptionRecord> {
+    const now = new Date();
+    const id = crypto.randomUUID();
+    const subRecord: PushSubscriptionRecord = {
+      id,
+      userId,
+      endpoint: data.endpoint,
+      p256dh: data.p256dh,
+      auth: data.auth,
+      userAgent: data.userAgent || null,
+      createdAt: now,
+    };
+
+    if (db) {
+      await db
+        .insert(schema.pushSubs)
+        .values({
+          id: subRecord.id,
+          userId: subRecord.userId,
+          endpoint: subRecord.endpoint,
+          p256dh: subRecord.p256dh,
+          auth: subRecord.auth,
+          userAgent: subRecord.userAgent,
+          createdAt: now,
+        })
+        .onConflictDoUpdate({
+          target: schema.pushSubs.endpoint,
+          set: {
+            userId: subRecord.userId,
+            p256dh: subRecord.p256dh,
+            auth: subRecord.auth,
+            userAgent: subRecord.userAgent,
+          },
+        });
+      return subRecord;
+    }
+
+    memoryStore.pushSubs.set(data.endpoint, subRecord);
+    return subRecord;
+  },
+
+  async removePushSubscription(endpoint: string): Promise<boolean> {
+    if (db) {
+      await db
+        .delete(schema.pushSubs)
+        .where(eq(schema.pushSubs.endpoint, endpoint));
+      return true;
+    }
+    return memoryStore.pushSubs.delete(endpoint);
+  },
+
+  async getPushSubscriptionsForUser(userId: string): Promise<PushSubscriptionRecord[]> {
+    if (db) {
+      const rows = await db
+        .select()
+        .from(schema.pushSubs)
+        .where(eq(schema.pushSubs.userId, userId));
+      return rows as unknown as PushSubscriptionRecord[];
+    }
+
+    return Array.from(memoryStore.pushSubs.values()).filter(
+      (s) => s.userId === userId
+    );
+  },
+
+  async getDueRemindersForDispatch(): Promise<
+    Array<ReminderRecord & { user: UserRecord }>
+  > {
+    const now = new Date();
+
+    if (db) {
+      const rows = await db
+        .select({
+          reminder: schema.reminders,
+          user: schema.users,
+        })
+        .from(schema.reminders)
+        .innerJoin(schema.users, eq(schema.reminders.userId, schema.users.id))
+        .where(
+          and(
+            eq(schema.reminders.status, "open"),
+            lte(schema.reminders.dueAt, now),
+            isNull(schema.reminders.notifiedAt)
+          )
+        );
+
+      return rows.map((r) => ({
+        ...(r.reminder as unknown as ReminderRecord),
+        dueAt: new Date(r.reminder.dueAt),
+        createdAt: new Date(r.reminder.createdAt),
+        updatedAt: new Date(r.reminder.updatedAt),
+        completedAt: r.reminder.completedAt ? new Date(r.reminder.completedAt) : null,
+        notifiedAt: r.reminder.notifiedAt ? new Date(r.reminder.notifiedAt) : null,
+        user: r.user as unknown as UserRecord,
+      }));
+    }
+
+    const dueList: Array<ReminderRecord & { user: UserRecord }> = [];
+    for (const r of memoryStore.reminders.values()) {
+      if (r.status === "open" && r.dueAt <= now && !r.notifiedAt) {
+        const user = memoryStore.users.get(r.userId);
+        if (user) {
+          dueList.push({
+            ...r,
+            user,
+          });
+        }
+      }
+    }
+    return dueList;
+  },
+
+  async markReminderNotified(reminderId: string): Promise<void> {
+    const now = new Date();
+    if (db) {
+      await db
+        .update(schema.reminders)
+        .set({ notifiedAt: now })
+        .where(eq(schema.reminders.id, reminderId));
+    } else {
+      const r = memoryStore.reminders.get(reminderId);
+      if (r) {
+        r.notifiedAt = now;
+      }
+    }
   },
 };
