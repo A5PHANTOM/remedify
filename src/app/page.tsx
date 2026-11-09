@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Layers, LayoutList, LogOut, Calendar, Sparkles, FolderKanban, History, Settings, ChevronDown, ChevronRight, CheckCircle2, Copy, ExternalLink, RefreshCw, WifiOff, AlertCircle, X, Check, House, ArrowUpRight, ShieldCheck } from "lucide-react";
+import { NotebookPen, Plus, Layers, LayoutList, LogOut, Calendar, Sparkles, FolderKanban, History, Settings, ChevronDown, ChevronRight, CheckCircle2, Copy, ExternalLink, RefreshCw, WifiOff, AlertCircle, X, Check, House, ArrowUpRight, ShieldCheck } from "lucide-react";
+import { Brand } from "@/components/brand";
+import { NotesView } from "@/components/notes-view";
 import { NotificationSettings } from "@/components/notification-settings";
 import { CardStack } from "@/components/card-stack";
 import { ReminderListView } from "@/components/reminder-list-view";
@@ -26,9 +28,9 @@ import {
 
 export default function HomePage() {
   const { data: session } = useSession();
-  const [filter, setFilter] = useState<"all" | "today" | "upcoming">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings">(
+  const [activeTab, setActiveTab] = useState<"home" | "notes" | "history" | "settings">(
     "home"
   );
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
@@ -243,6 +245,12 @@ export default function HomePage() {
         body: JSON.stringify({ status: "done", action: "completed" }),
       });
 
+      if (!res.ok) {
+        setReminders((prev) => { const restored = prev.map((r) => r.id === reminder.id ? reminder : r); setCachedReminders(restored); return restored; });
+        clearTimeout(timer); setUndoToast(null);
+        setPushStatusMessage({ type: "error", text: "Couldn’t complete this task. It is still pending. Please try again." });
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         // If server spawned next occurrence of repeating reminder, add it to state immediately
@@ -387,25 +395,30 @@ export default function HomePage() {
   const handleLogout = async () => { await signOut({ callbackUrl: "/login" }); };
 
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
-  const today = new Date();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    const refresh = () => setNow(Date.now());
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, []);
+  const today = new Date(now);
   const todayKey = today.toDateString();
   const openReminders = reminders.filter((r) => r.status === "open");
-  const todayCount = openReminders.filter((r) => new Date(r.dueAt).toDateString() === todayKey).length;
   const completedToday = reminders.filter((r) => r.status === "done" && r.completedAt && new Date(r.completedAt).toDateString() === todayKey).length;
   const overdueCount = openReminders.filter((r) => new Date(r.dueAt) < today).length;
   const filteredReminders = reminders.filter((r) => {
-    if (filter === "today") return new Date(r.dueAt).toDateString() === todayKey;
-    if (filter === "upcoming") return r.status === "open" && new Date(r.dueAt) > today && new Date(r.dueAt).toDateString() !== todayKey;
-    return true;
-  });
-  const progress = completedToday + todayCount > 0 ? completedToday / (completedToday + todayCount) : 0;
+    if (filter === "completed") return r.status === "done";
+    if (r.status !== "open") return false;
+    return filter !== "pending" || new Date(r.dueAt).getTime() < now;
+  }).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
   const firstName = session?.user?.name?.split(" ")[0];
   const greeting = today.getHours() < 12 ? "Good morning" : today.getHours() < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <a href="/" className="wordmark" aria-label="Remidify home"><span className="brand-mark"><Layers size={20} /></span>remidify<span className="brand-dot">.</span></a>
+        <Brand />
         <button className="avatar-button" onClick={() => setActiveTab("settings")} aria-label="Open account settings">{(firstName || session?.user?.email || "R")[0].toUpperCase()}</button>
       </header>
 
@@ -414,31 +427,27 @@ export default function HomePage() {
         {pushStatusMessage && <div role="status" className={`inline-notice ${pushStatusMessage.type}`}><span>{pushStatusMessage.text}</span><button onClick={() => setPushStatusMessage(null)} aria-label="Dismiss message"><X size={16} /></button></div>}
 
         {activeTab === "home" && <>
-          <section className="page-intro">
-            <p className="eyebrow">{greeting}{firstName ? `, ${firstName}` : ""} <span className="greeting-sun">✳</span></p>
-            <div className="title-row"><h1>A little more<br /><span>headspace.</span></h1><span className="date-stamp"><strong>{today.getDate()}</strong>{today.toLocaleDateString("en", { month: "short" }).toUpperCase()}</span></div>
-            <p className="intro-description">Your plans, in place. Your mind, at ease.</p>
+          <section className="page-intro agenda-intro">
+            <p className="eyebrow">{greeting}{firstName ? `, ${firstName}` : ""} · {today.toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</p>
+            <div className="title-row"><div><h1>Your next move<span className="brand-dot">.</span></h1><p className="intro-description">All your tasks, ordered by due date.</p></div></div>
           </section>
-
-          <section className="daily-overview" aria-label="Your day at a glance">
-            <div className="overview-top"><span><span className="live-dot" /> YOUR DAY, AT A GLANCE</span><ArrowUpRight size={17} /></div>
-            <div className="overview-body"><div><span className="overview-number">{String(todayCount).padStart(2, "0")}</span><p>{todayCount === 1 ? "reminder for today" : "reminders for today"}</p></div>
-              <div className="progress-ring" role="img" aria-label={`${completedToday} completed today`} style={{ "--progress": `${progress * 360}deg` } as React.CSSProperties}><div><Check size={19} /><strong>{completedToday}</strong><small>done</small></div></div>
-            </div>
-            <div className="overview-footer"><span>{overdueCount > 0 ? <><span className="overdue-dot" />{overdueCount} overdue · a fresh start awaits</> : <><Sparkles size={13} /> One thing at a time. You’ve got this.</>}</span><span>{openReminders.length} open</span></div>
+          <section className="agenda-overview" aria-label="Task overview">
+            <button onClick={() => setFilter("all")}><span>Open tasks</span><strong>{openReminders.length.toString().padStart(2, "0")}</strong><small>Across all due dates</small></button>
+            <button className={overdueCount ? "has-pending" : ""} onClick={() => setFilter("pending")}><span>Pending</span><strong>{overdueCount.toString().padStart(2, "0")}</strong><small>{overdueCount ? "Needs your attention" : "Nothing overdue"}</small></button>
+            <button onClick={() => setFilter("completed")}><span>Done today</span><strong>{completedToday.toString().padStart(2, "0")}</strong><small>A little progress</small></button>
           </section>
-
-          <NotificationSettings compact onOpen={() => setActiveTab("settings")} />
 
           <section className="reminders-section" aria-labelledby="reminders-heading">
-            <div className="reminders-heading"><h2 id="reminders-heading">Your reminders <span>{openReminders.length}</span></h2>
+            <div className="reminders-heading"><h2 id="reminders-heading">Your agenda <span>{openReminders.length}</span></h2>
               <button className="workspace-switch" onClick={() => setIsWorkspaceModalOpen(true)} aria-label="Switch workspace"><span>{activeWorkspaceId === "main" ? "All spaces" : activeWs?.name || "Workspace"}</span><ChevronDown size={14} /></button></div>
-            <div className="filter-row"><div className="filter-tabs" aria-label="Filter reminders">{(["all", "today", "upcoming"] as const).map((item) => <button key={item} aria-pressed={filter === item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)}>{item === "all" ? "All" : item === "today" ? "Today" : "Upcoming"}</button>)}</div>
+            <div className="filter-row"><div className="filter-tabs" aria-label="Filter reminders">{(["all", "pending", "completed"] as const).map((item) => <button key={item} aria-pressed={filter === item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)}>{item === "all" ? "All tasks" : item === "pending" ? "Pending" : "Completed"}</button>)}</div>
               <div className="view-switch" aria-label="Reminder view"><button aria-label="List view" aria-pressed={viewMode === "list"} className={viewMode === "list" ? "selected" : ""} onClick={() => setViewMode("list")}><LayoutList size={17} /></button><button aria-label="Focus cards" aria-pressed={viewMode === "card"} className={viewMode === "card" ? "selected" : ""} onClick={() => setViewMode("card")}><Layers size={17} /></button></div></div>
-            {loading && reminders.length === 0 ? <div className="loading-reminders" role="status" aria-label="Loading reminders"><span /><span /><span /></div> : loadError && reminders.length === 0 ? <div className="empty-state"><AlertCircle size={30} /><h3>Couldn’t load your reminders</h3><p>{loadError}</p><button className="secondary-button" onClick={fetchReminders}><RefreshCw size={16} /> Try again</button></div> : viewMode === "list" ? <ReminderListView reminders={filteredReminders} onToggleDone={handleToggleDone} onOpenDetail={setDetailTarget} onAdd={() => setIsQuickAddOpen(true)} /> : <div className="focus-stack"><CardStack reminders={filteredReminders} onComplete={handleComplete} onSnooze={setSnoozeTarget} onReschedule={setRescheduleTarget} onTap={setDetailTarget} /></div>}
+            {loading && reminders.length === 0 ? <div className="loading-reminders" role="status" aria-label="Loading reminders"><span /><span /><span /></div> : loadError && reminders.length === 0 ? <div className="empty-state"><AlertCircle size={30} /><h3>Couldn’t load your reminders</h3><p>{loadError}</p><button className="secondary-button" onClick={fetchReminders}><RefreshCw size={16} /> Try again</button></div> : viewMode === "list" || filter === "completed" ? <ReminderListView now={now} reminders={filteredReminders} onToggleDone={handleToggleDone} onOpenDetail={setDetailTarget} onAdd={() => setIsQuickAddOpen(true)} /> : <div className="focus-stack"><CardStack reminders={filteredReminders} onComplete={handleComplete} onSnooze={setSnoozeTarget} onReschedule={setRescheduleTarget} onTap={setDetailTarget} /></div>}
           </section>
-          <p className="endnote">Less on your mind. More in your day.</p>
+          <button className="agenda-add" onClick={() => setIsQuickAddOpen(true)}><Plus size={18} /> Add a task <span>Plan ahead, start today</span></button>
         </>}
+
+        <div hidden={activeTab !== "notes"}><NotesView /></div>
 
         {activeTab === "history" && <><section className="page-intro compact-intro"><p className="eyebrow">A LITTLE PROGRESS, EVERY DAY</p><h1>Your activity<span className="brand-dot">.</span></h1><p className="intro-description">Every small step adds up.</p></section><HistoryView workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} /></>}
 
@@ -454,7 +463,7 @@ export default function HomePage() {
         </>}
       </main>
 
-      <div className="bottom-bar"><nav className="bottom-nav" aria-label="Main navigation">{([{ id: "home", label: "My day", icon: House }, { id: "history", label: "Activity", icon: History }, { id: "settings", label: "Settings", icon: Settings }] as const).map(({ id, label, icon: Icon }) => <button key={id} aria-current={activeTab === id ? "page" : undefined} onClick={() => { setActiveTab(id); document.querySelector(".app-content")?.scrollTo({ top: 0 }); }} className={activeTab === id ? "active" : ""}><Icon size={21} /><span>{label}</span></button>)}</nav><button className="add-button" aria-label="Add reminder" onClick={() => setIsQuickAddOpen(true)}><Plus size={27} /></button></div>
+      <div className="bottom-bar"><nav className="bottom-nav" aria-label="Main navigation">{([{ id: "home", label: "Tasks", icon: LayoutList }, { id: "notes", label: "Notes", icon: NotebookPen }, { id: "history", label: "Activity", icon: History }, { id: "settings", label: "Settings", icon: Settings }] as const).map(({ id, label, icon: Icon }) => <button key={id} aria-current={activeTab === id ? "page" : undefined} onClick={() => { setActiveTab(id); document.querySelector(".app-content")?.scrollTo({ top: 0 }); }} className={activeTab === id ? "active" : ""}><Icon size={21} /><span>{label}</span></button>)}</nav>{activeTab === "home" && <button className="add-button" aria-label="Add reminder" onClick={() => setIsQuickAddOpen(true)}><Plus size={27} /></button>}</div>
       <AnimatePresence>{undoToast && <motion.div className="undo-toast" role="status" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}><CheckCircle2 size={18} /><span>One less thing on your mind.</span><button onClick={handleUndo}>Undo</button></motion.div>}</AnimatePresence>
       <WorkspaceModal isOpen={isWorkspaceModalOpen} onClose={() => setIsWorkspaceModalOpen(false)} workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} onSelectWorkspace={handleSelectWorkspace} onWorkspaceCreated={handleWorkspaceCreated} onWorkspaceUpdated={handleWorkspaceUpdated} onWorkspaceDeleted={handleWorkspaceDeleted} />
       <QuickAddSheet isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} onReminderCreated={handleReminderCreated} workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} />

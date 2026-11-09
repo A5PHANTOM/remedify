@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const viewport: Viewport = {
-  themeColor: "#101113",
+  themeColor: "#141614",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -11,7 +11,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Remidify",
-  description: "A little more headspace. Thoughtful reminders for your everyday.",
+  description: "Your tasks, notes, and next steps. All in one clear space.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: "/apple-touch-icon.png",
-    icon: "/favicon.ico",
+    icon: "/icons/brand.svg",
   },
 };
 

@@ -8,6 +8,13 @@
       "when": 1794155520485,
       "tag": "0000_late_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794238087685,
+      "tag": "0001_woozy_titania",
+      "breakpoints": true
     }
   ]
 }

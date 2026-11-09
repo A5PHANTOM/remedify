@@ -181,3 +181,13 @@ export const pushSubs = pgTable("push_subs", {
     .default(sql`now()`),
 });
 
+
+// Standalone notes belong to an account, independently of task deadlines.
+export const notes = pgTable("notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ userUpdatedIdx: index("notes_user_updated_idx").on(table.userId, table.updatedAt) }));

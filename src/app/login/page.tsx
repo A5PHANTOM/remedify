@@ -1,9 +1,10 @@
 "use client";
+import { Brand } from "@/components/brand";
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Layers, Bell, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Bell, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -98,7 +99,7 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
-      <header className="login-brand"><a className="wordmark" href="/login"><span className="brand-mark"><Layers size={20} /></span>remidify<span className="brand-dot">.</span></a><span>Room to breathe</span></header>
+      <header className="login-brand"><Brand /><span>Room to breathe</span></header>
       <section className="login-hero"><p className="eyebrow">FOR THE THINGS THAT MATTER</p><h1>Less to hold.<br /><span>More to live.</span></h1><p>A thoughtful little home for your reminders. Clear your mind. Enjoy your day.</p></section>
       <div className="login-preview" aria-label="Example reminder notification"><div><Bell size={14} /> A LITTLE NUDGE <span>now</span></div><strong>Make time for a little you.</strong><p>The important things deserve a gentle reminder.</p></div>
       <div className="login-form-card space-y-5">

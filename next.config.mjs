@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  distDir: process.env.REMIDIFY_BUILD_DIR || ".next",
   poweredByHeader: false,
   outputFileTracingRoot: __dirname,
   async headers() {
