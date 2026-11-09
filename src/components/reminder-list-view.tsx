@@ -89,8 +89,8 @@ export function ReminderListView({
               <div
                 key={reminder.id}
                 onClick={() => onOpenDetail?.(reminder)}
-                className={`p-3.5 bg-[var(--card)] border border-[var(--border)] rounded-2xl flex items-center justify-between space-x-3 transition-all hover:border-zinc-700 active:scale-[0.99] cursor-pointer ${
-                  isDone ? "opacity-60" : ""
+                className={`p-3.5 glass-card rounded-2xl flex items-center justify-between space-x-3 transition-all hover:bg-white/10 active:scale-[0.99] cursor-pointer ${
+                  isDone ? "opacity-50" : ""
                 }`}
               >
                 {/* Complete checkbox button */}

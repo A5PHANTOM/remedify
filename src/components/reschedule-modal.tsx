@@ -73,31 +73,33 @@ export function RescheduleModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
           />
 
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950 border-t border-zinc-800 rounded-t-[32px] p-5 pb-safe z-50 shadow-2xl"
+            transition={{ type: "spring", damping: 28, stiffness: 350 }}
+            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)]"
           >
-            <div className="w-12 h-1.5 bg-zinc-700/60 rounded-full mx-auto mb-3" />
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3" />
 
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-accent-blue" />
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+                  <Calendar className="w-4 h-4" />
+                </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">Reschedule Reminder</h3>
-                  <p className="text-[11px] text-zinc-400 truncate max-w-[240px]">
+                  <p className="text-[11px] text-zinc-300 truncate max-w-[240px]">
                     &quot;{reminder.title}&quot;
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white"
+                className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -108,16 +110,16 @@ export function RescheduleModal({
                 <button
                   key={opt.label}
                   onClick={() => handleSelectOption(opt.date)}
-                  className="w-full p-3.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 rounded-2xl flex items-center justify-between text-left transition-all active:scale-[0.99]"
+                  className="w-full p-3.5 glass-card hover:bg-white/10 rounded-2xl flex items-center justify-between text-left transition-all active:scale-[0.99]"
                 >
                   <span className="text-sm font-medium text-white">{opt.label}</span>
-                  <ArrowUpRight className="w-4 h-4 text-accent-blue" />
+                  <ArrowUpRight className="w-4 h-4 text-blue-400" />
                 </button>
               ))}
 
               <button
                 onClick={() => setShowCustom(!showCustom)}
-                className="w-full p-3.5 bg-zinc-900/50 hover:bg-zinc-800/80 border border-zinc-800/50 rounded-2xl flex items-center justify-between text-left text-xs text-zinc-400 hover:text-zinc-200 transition-all"
+                className="w-full p-3.5 glass-pill hover:bg-white/10 rounded-2xl flex items-center justify-between text-left text-xs text-zinc-300 transition-all"
               >
                 <span className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-zinc-400" />
@@ -133,11 +135,11 @@ export function RescheduleModal({
                     value={customDate}
                     onChange={(e) => setCustomDate(e.target.value)}
                     required
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-accent-blue"
+                    className="w-full bg-black/60 border border-white/15 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-400"
                   />
                   <button
                     type="submit"
-                    className="w-full py-3 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white font-semibold rounded-xl text-xs transition-all"
+                    className="w-full py-3 glow-button-blue active:scale-[0.98] text-white font-semibold rounded-xl text-xs transition-all"
                   >
                     Reschedule
                   </button>

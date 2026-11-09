@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 import * as webpush from "web-push";
 
@@ -13,12 +13,12 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const subscriptions = await dbRepo.getPushSubscriptionsForUser(session.user.id);
+    const subscriptions = await dbRepo.getPushSubscriptionsForUser(user.id);
     if (subscriptions.length === 0) {
       return NextResponse.json(
         { error: "No registered push devices found. Please enable notifications on this device first." },

@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await dbRepo.findUserById(session.user.id);
+    const user = await getCurrentUser();
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json({
@@ -28,12 +23,12 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const newToken = await dbRepo.regenerateCalendarToken(session.user.id);
+    const newToken = await dbRepo.regenerateCalendarToken(user.id);
     return NextResponse.json({ calendarToken: newToken });
   } catch (err: unknown) {
     console.error("Failed to regenerate calendar token:", err);

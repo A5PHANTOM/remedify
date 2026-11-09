@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 import { z } from "zod";
 
@@ -14,8 +14,8 @@ const createReminderSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const status =
       statusParam === "done" || statusParam === "all" ? statusParam : "open";
 
-    const reminders = await dbRepo.getReminders(session.user.id, {
+    const reminders = await dbRepo.getReminders(user.id, {
       workspaceId,
       status,
     });
@@ -42,8 +42,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     // Resolve workspace: use provided workspaceId, or default to user's "Main" workspace
     let targetWorkspaceId = parsed.data.workspaceId;
     if (!targetWorkspaceId) {
-      const mainWs = await dbRepo.ensureMainWorkspace(session.user.id);
+      const mainWs = await dbRepo.ensureMainWorkspace(user.id);
       targetWorkspaceId = mainWs.id;
     }
 
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     }
 
     const reminder = await dbRepo.createReminder({
-      userId: session.user.id,
+      userId: user.id,
       workspaceId: targetWorkspaceId,
       title,
       note,

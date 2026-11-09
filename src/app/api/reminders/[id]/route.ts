@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 import { computeNextOccurrence } from "@/lib/recurrence";
 import { z } from "zod";
@@ -22,8 +22,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -37,7 +37,7 @@ export async function PATCH(
       );
     }
 
-    const existing = await dbRepo.getReminderById(session.user.id, id);
+    const existing = await dbRepo.getReminderById(user.id, id);
     if (!existing) {
       return NextResponse.json(
         { error: "Reminder not found" },
@@ -66,7 +66,7 @@ export async function PATCH(
     }
 
     const updated = await dbRepo.updateReminder(
-      session.user.id,
+      user.id,
       id,
       updates,
       action
@@ -80,7 +80,7 @@ export async function PATCH(
         existing.repeatRule as "daily" | "weekly" | "monthly"
       );
       nextOccurrence = await dbRepo.createReminder({
-        userId: session.user.id,
+        userId: user.id,
         workspaceId: existing.workspaceId,
         title: existing.title,
         note: existing.note,
@@ -105,13 +105,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
-    const deleted = await dbRepo.deleteReminder(session.user.id, id);
+    const deleted = await dbRepo.deleteReminder(user.id, id);
     if (!deleted) {
       return NextResponse.json(
         { error: "Reminder not found" },

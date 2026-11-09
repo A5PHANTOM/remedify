@@ -198,20 +198,20 @@ export function WorkspaceModal({
               resetForm();
               onClose();
             }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
           />
 
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950 border-t border-zinc-800 rounded-t-[32px] p-5 pb-safe z-50 shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden"
+            transition={{ type: "spring", damping: 28, stiffness: 350 }}
+            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[85dvh] overflow-hidden"
           >
-            <div className="w-12 h-1.5 bg-zinc-700/60 rounded-full mx-auto mb-3 shrink-0" />
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0" />
 
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <span>
                   {view === "list"
@@ -226,7 +226,7 @@ export function WorkspaceModal({
                   resetForm();
                   onClose();
                 }}
-                className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white"
+                className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -234,7 +234,7 @@ export function WorkspaceModal({
 
             {/* View 1: Workspaces List */}
             {view === "list" && (
-              <div className="flex-1 overflow-y-auto py-3 space-y-2 pr-0.5">
+              <div className="flex-1 overflow-y-auto py-3 space-y-2 pr-0.5 no-scrollbar">
                 {workspaces.map((ws) => {
                   const isSelected =
                     (activeWorkspaceId === "main" && ws.isMain) ||
@@ -249,16 +249,16 @@ export function WorkspaceModal({
                       }}
                       className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-zinc-900 border-accent-blue shadow-sm"
-                          : "bg-zinc-950 hover:bg-zinc-900/60 border-zinc-800/80"
+                          ? "glass-panel border-blue-400/50 shadow-[0_0_20px_rgba(59,130,246,0.25)]"
+                          : "glass-card hover:bg-white/10 border-white/10"
                       }`}
                     >
                       <div className="flex items-center space-x-3">
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-lg border"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-lg border glass-pill"
                           style={{
-                            backgroundColor: `${ws.colour}15`,
-                            borderColor: `${ws.colour}40`,
+                            borderColor: `${ws.colour}50`,
+                            boxShadow: `0 0 12px ${ws.colour}30`,
                           }}
                         >
                           {ws.emoji}
@@ -269,12 +269,12 @@ export function WorkspaceModal({
                               {ws.name}
                             </span>
                             {ws.isMain && (
-                              <span className="px-2 py-0.5 bg-accent-blue/15 text-accent-blue text-[10px] font-semibold rounded-md border border-accent-blue/20">
+                              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-semibold rounded-md border border-blue-400/30">
                                 Aggregate
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-zinc-500">
+                          <p className="text-[11px] text-zinc-400">
                             {ws.isMain
                               ? "Shows reminders from all workspaces"
                               : "Strict workspace isolation"}
@@ -284,7 +284,7 @@ export function WorkspaceModal({
 
                       <div className="flex items-center space-x-2">
                         {isSelected && (
-                          <div className="w-6 h-6 rounded-full bg-accent-blue text-white flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.5)]">
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                           </div>
                         )}
@@ -295,7 +295,7 @@ export function WorkspaceModal({
                               e.stopPropagation();
                               handleStartEdit(ws);
                             }}
-                            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-white glass-pill"
                             title="Edit workspace"
                           >
                             <Settings2 className="w-4 h-4" />

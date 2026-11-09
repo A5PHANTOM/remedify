@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 import { z } from "zod";
 
@@ -12,12 +12,12 @@ const createWorkspaceSchema = z.object({
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaces = await dbRepo.getWorkspaces(session.user.id);
+    const workspaces = await dbRepo.getWorkspaces(user.id);
     return NextResponse.json({ workspaces });
   } catch (err: unknown) {
     console.error("Failed to fetch workspaces:", err);
@@ -30,8 +30,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const workspace = await dbRepo.createWorkspace(session.user.id, parsed.data);
+    const workspace = await dbRepo.createWorkspace(user.id, parsed.data);
     return NextResponse.json({ workspace }, { status: 201 });
   } catch (err: unknown) {
     console.error("Failed to create workspace:", err);

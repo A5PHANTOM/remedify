@@ -57,15 +57,50 @@ if (googleClientId && googleClientSecret) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      const email = (user?.email || token.email) as string | undefined;
+      if (email) {
+        try {
+          const dbUser = await dbRepo.createOrGetUser(
+            email,
+            (user?.name || token.name) as string | null,
+            (user?.image || token.picture) as string | null
+          );
+          token.id = dbUser.id;
+          token.email = dbUser.email;
+          token.name = dbUser.name;
+          token.picture = dbUser.image;
+        } catch (e) {
+          console.error("[jwt callback] Error syncing user:", e);
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.image = token.picture as string | null | undefined;
+      }
+      return session;
+    },
+  },
   events: {
     async signIn({ user, account }) {
-      if (account?.provider === "google" && user?.email) {
-        const dbUser = await dbRepo.createOrGetUser(
-          user.email,
-          user.name,
-          user.image
-        );
-        user.id = dbUser.id;
+      if (user?.email) {
+        try {
+          const dbUser = await dbRepo.createOrGetUser(
+            user.email,
+            user.name,
+            user.image
+          );
+          user.id = dbUser.id;
+        } catch (e) {
+          console.error("[signIn event] Error syncing user:", e);
+        }
       }
     },
   },

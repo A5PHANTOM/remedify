@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 import { z } from "zod";
 
@@ -16,8 +16,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -31,7 +31,7 @@ export async function PATCH(
       );
     }
 
-    const updated = await dbRepo.updateWorkspace(session.user.id, id, parsed.data);
+    const updated = await dbRepo.updateWorkspace(user.id, id, parsed.data);
     if (!updated) {
       return NextResponse.json(
         { error: "Workspace not found or cannot be modified" },
@@ -54,8 +54,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -63,7 +63,7 @@ export async function DELETE(
     const { searchParams } = new URL(req.url);
     const reassignToMain = searchParams.get("reassign") !== "false";
 
-    const success = await dbRepo.deleteWorkspace(session.user.id, id, reassignToMain);
+    const success = await dbRepo.deleteWorkspace(user.id, id, reassignToMain);
     if (!success) {
       return NextResponse.json(
         { error: "Cannot delete the default Main workspace" },

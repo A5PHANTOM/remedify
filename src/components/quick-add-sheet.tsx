@@ -15,6 +15,7 @@ import {
   Check,
   Flag,
   Repeat,
+  Loader2,
 } from "lucide-react";
 import {
   parseNaturalLanguageDate,
@@ -74,7 +75,7 @@ export function QuickAddSheet({
       setShowCustomPicker(false);
       const timer = setTimeout(() => {
         inputRef.current?.focus();
-      }, 50);
+      }, 60);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
@@ -162,35 +163,35 @@ export function QuickAddSheet({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Frosted Glass Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-40"
           />
 
-          {/* Bottom Sheet */}
+          {/* Frosted Glass Bottom Sheet */}
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950 border-t border-zinc-800 rounded-t-[32px] p-5 pb-safe z-50 shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden"
+            transition={{ type: "spring", damping: 28, stiffness: 350 }}
+            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[85dvh] overflow-hidden"
           >
             {/* Grab Handle */}
-            <div className="w-12 h-1.5 bg-zinc-700/60 rounded-full mx-auto mb-3 shrink-0" />
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0" />
 
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-accent-blue" /> Quick Reminder
+                <Sparkles className="w-4 h-4 text-blue-400" /> Fast Capture
               </span>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white"
+                className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white active:scale-95 transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -199,16 +200,16 @@ export function QuickAddSheet({
             {/* Scrollable Form Body */}
             <form
               onSubmit={handleSave}
-              className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-0.5"
+              className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-0.5 no-scrollbar"
             >
               {error && (
-                <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center space-x-2 text-red-400 text-xs">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
+                <div className="p-3 bg-red-500/15 border border-red-500/30 rounded-2xl flex items-center space-x-2 text-red-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                   <span>{error}</span>
                 </div>
               )}
 
-              {/* Title Input */}
+              {/* Title Input with Glass Aesthetics */}
               <div>
                 <input
                   ref={inputRef}
@@ -222,24 +223,24 @@ export function QuickAddSheet({
                     }
                   }}
                   placeholder="e.g. Call vendor tomorrow 5pm"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-base text-white placeholder-zinc-500 focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
+                  className="w-full glass-card border border-white/12 rounded-2xl px-4 py-3.5 text-base text-white placeholder-zinc-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
                   autoComplete="off"
                 />
               </div>
 
               {/* Selected Due Date Pill */}
-              <div className="flex items-center justify-between bg-zinc-900/80 border border-zinc-800 px-3.5 py-2.5 rounded-xl">
+              <div className="flex items-center justify-between glass-pill px-4 py-2.5 rounded-2xl">
                 <div className="flex items-center space-x-2 text-xs">
-                  <Clock className="w-4 h-4 text-accent-blue shrink-0" />
-                  <span className="text-zinc-400">Due:</span>
-                  <span className="font-semibold text-accent-blue">
+                  <Clock className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span className="text-zinc-400">Scheduled:</span>
+                  <span className="font-semibold text-blue-300">
                     {relativeText}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowCustomPicker(!showCustomPicker)}
-                  className="text-[11px] text-zinc-400 hover:text-white underline decoration-zinc-600"
+                  className="text-[11px] text-zinc-300 hover:text-white underline decoration-zinc-500"
                 >
                   {showCustomPicker ? "Hide Picker" : "Custom"}
                 </button>
@@ -247,7 +248,7 @@ export function QuickAddSheet({
 
               {/* Native Date Picker (if toggled) */}
               {showCustomPicker && (
-                <div className="p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+                <div className="p-3.5 glass-card rounded-2xl border border-white/10 space-y-1">
                   <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
                     Select exact date and time:
                   </label>
@@ -262,14 +263,14 @@ export function QuickAddSheet({
                         .slice(0, 16)
                     }
                     onChange={handleCustomDateChange}
-                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-accent-blue"
+                    className="w-full bg-black/60 border border-white/15 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-blue-400"
                   />
                 </div>
               )}
 
               {/* Preset Chips */}
               <div className="space-y-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
                   Quick Presets
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -278,7 +279,7 @@ export function QuickAddSheet({
                       key={p.id}
                       type="button"
                       onClick={() => handleApplyPreset(p)}
-                      className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 active:scale-95 text-xs text-zinc-300 rounded-lg transition-all"
+                      className="px-3 py-1.5 glass-pill hover:bg-white/12 active:scale-95 text-xs text-zinc-200 rounded-xl transition-all"
                     >
                       {p.label}
                     </button>
@@ -288,7 +289,7 @@ export function QuickAddSheet({
                       key={p.id}
                       type="button"
                       onClick={() => handleApplyPreset(p)}
-                      className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 active:scale-95 text-xs text-zinc-300 rounded-lg transition-all"
+                      className="px-3 py-1.5 glass-pill hover:bg-white/12 active:scale-95 text-xs text-zinc-200 rounded-xl transition-all"
                     >
                       {p.label}
                     </button>
@@ -300,7 +301,7 @@ export function QuickAddSheet({
               <button
                 type="button"
                 onClick={() => setShowMore(!showMore)}
-                className="w-full py-2 flex items-center justify-between text-xs text-zinc-400 hover:text-zinc-200 border-t border-zinc-800/80 pt-2.5"
+                className="w-full py-2 flex items-center justify-between text-xs text-zinc-400 hover:text-zinc-200 border-t border-white/10 pt-2.5"
               >
                 <span className="font-medium">
                   {showMore ? "Fewer options" : "More (workspace, priority, note, repeat)"}
@@ -314,7 +315,7 @@ export function QuickAddSheet({
 
               {/* Expanded "More" Options */}
               {showMore && (
-                <div className="space-y-3 pt-1 border-t border-zinc-900">
+                <div className="space-y-3 pt-1 border-t border-white/5">
                   {/* Workspace selector */}
                   {workspaces.length > 0 && (
                     <div>
@@ -324,10 +325,10 @@ export function QuickAddSheet({
                       <select
                         value={selectedWorkspaceId}
                         onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-accent-blue"
+                        className="w-full glass-card border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-400"
                       >
                         {workspaces.map((ws) => (
-                          <option key={ws.id} value={ws.id}>
+                          <option key={ws.id} value={ws.id} className="bg-zinc-900 text-white">
                             {ws.emoji} {ws.name} {ws.isMain ? "(All)" : ""}
                           </option>
                         ))}
@@ -352,8 +353,8 @@ export function QuickAddSheet({
                           onClick={() => setPriority(item.level)}
                           className={`py-2 text-xs rounded-xl font-medium border transition-all ${
                             priority === item.level
-                              ? "bg-accent-blue/20 border-accent-blue text-accent-blue"
-                              : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                              ? "bg-blue-500/25 border-blue-400 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                              : "glass-pill text-zinc-400 hover:text-white"
                           }`}
                         >
                           {item.label}
@@ -382,8 +383,8 @@ export function QuickAddSheet({
                           }
                           className={`py-2 text-[11px] rounded-xl font-medium border transition-all ${
                             repeatRule === item.rule
-                              ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                              : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                              ? "bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                              : "glass-pill text-zinc-400 hover:text-white"
                           }`}
                         >
                           {item.label}
@@ -402,7 +403,7 @@ export function QuickAddSheet({
                       onChange={(e) => setNote(e.target.value)}
                       placeholder="Add details, link, or context..."
                       rows={2}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-blue"
+                      className="w-full glass-card border border-white/10 rounded-2xl p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -410,14 +411,14 @@ export function QuickAddSheet({
             </form>
 
             {/* Bottom Actions Area */}
-            <div className="pt-3 border-t border-zinc-800/80 space-y-2 shrink-0">
+            <div className="pt-3 border-t border-white/10 space-y-2 shrink-0">
               <div className="flex items-center justify-between text-xs px-1">
                 <label className="flex items-center space-x-2 text-zinc-400 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={keepOpenAfterSave}
                     onChange={(e) => setKeepOpenAfterSave(e.target.checked)}
-                    className="rounded bg-zinc-800 border-zinc-700 text-accent-blue focus:ring-0"
+                    className="rounded bg-white/10 border-white/20 text-blue-500 focus:ring-0"
                   />
                   <span>Save and add another</span>
                 </label>
@@ -427,10 +428,10 @@ export function QuickAddSheet({
                 type="button"
                 onClick={() => handleSave()}
                 disabled={saving}
-                className="w-full h-12 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white font-semibold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+                className="w-full h-12 glow-button-blue active:scale-[0.98] text-white font-semibold rounded-2xl text-sm flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {saving ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
                     <Check className="w-5 h-5 stroke-[2.5]" />
@@ -445,4 +446,3 @@ export function QuickAddSheet({
     </AnimatePresence>
   );
 }
-

@@ -129,30 +129,30 @@ export function ReminderDetailModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
           />
 
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950 border-t border-zinc-800 rounded-t-[32px] p-5 pb-safe z-50 shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden"
+            transition={{ type: "spring", damping: 28, stiffness: 350 }}
+            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-zinc-950/85 backdrop-blur-3xl border-t border-white/15 rounded-t-[36px] p-5 pb-safe z-50 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] flex flex-col max-h-[90dvh] overflow-hidden"
           >
-            <div className="w-12 h-1.5 bg-zinc-700/60 rounded-full mx-auto mb-3 shrink-0" />
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0" />
 
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <span className="text-sm font-bold text-white flex items-center gap-2">
                 <span>Edit Reminder</span>
                 {isOverdue && reminder.status === "open" && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/30">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30">
                     Overdue
                   </span>
                 )}
               </span>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white"
+                className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-zinc-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -160,7 +160,7 @@ export function ReminderDetailModal({
 
             <form
               onSubmit={handleSave}
-              className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-0.5"
+              className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-0.5 no-scrollbar"
             >
               {/* Title Input */}
               <div>
@@ -172,7 +172,7 @@ export function ReminderDetailModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-accent-blue"
+                  className="w-full glass-card border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -186,7 +186,7 @@ export function ReminderDetailModal({
                   value={dueDateStr}
                   onChange={(e) => setDueDateStr(e.target.value)}
                   required
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-accent-blue"
+                  className="w-full glass-card border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -199,10 +199,10 @@ export function ReminderDetailModal({
                   <select
                     value={workspaceId}
                     onChange={(e) => setWorkspaceId(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-accent-blue"
+                    className="w-full glass-card border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-400"
                   >
                     {workspaces.map((ws) => (
-                      <option key={ws.id} value={ws.id}>
+                      <option key={ws.id} value={ws.id} className="bg-zinc-900 text-white">
                         {ws.emoji} {ws.name} {ws.isMain ? "(All)" : ""}
                       </option>
                     ))}
@@ -227,8 +227,8 @@ export function ReminderDetailModal({
                       onClick={() => setPriority(item.level)}
                       className={`py-2 text-xs rounded-xl font-medium border transition-all ${
                         priority === item.level
-                          ? "bg-accent-blue/20 border-accent-blue text-accent-blue"
-                          : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                          ? "bg-blue-500/25 border-blue-400 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                          : "glass-pill text-zinc-400"
                       }`}
                     >
                       {item.label}
@@ -255,8 +255,8 @@ export function ReminderDetailModal({
                       onClick={() => setRepeatRule(item.rule as any)}
                       className={`py-2 text-[11px] rounded-xl font-medium border transition-all ${
                         repeatRule === item.rule
-                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                          : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                          ? "bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                          : "glass-pill text-zinc-400"
                       }`}
                     >
                       {item.label}
@@ -275,22 +275,22 @@ export function ReminderDetailModal({
                   onChange={(e) => setNote(e.target.value)}
                   rows={2}
                   placeholder="Notes, details, context..."
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-accent-blue"
+                  className="w-full glass-card border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
               {/* Meta stats */}
-              <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/60 text-[11px] text-zinc-400 space-y-1">
+              <div className="p-3 glass-pill rounded-2xl text-[11px] text-zinc-300 space-y-1">
                 <div className="flex justify-between">
                   <span>Created:</span>
-                  <span className="text-zinc-300">
+                  <span className="text-zinc-200">
                     {new Date(reminder.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 {reminder.snoozedCount > 0 && (
                   <div className="flex justify-between">
                     <span>Snoozed:</span>
-                    <span className="text-amber-400">
+                    <span className="text-amber-300">
                       {reminder.snoozedCount} time(s)
                     </span>
                   </div>
@@ -299,13 +299,13 @@ export function ReminderDetailModal({
             </form>
 
             {/* Actions footer */}
-            <div className="pt-3 border-t border-zinc-800 shrink-0 space-y-2">
+            <div className="pt-3 border-t border-white/10 shrink-0 space-y-2">
               <a
                 href={`/api/ics/reminder/${reminder.id}.ics`}
                 download
-                className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 rounded-xl text-xs font-medium flex items-center justify-center space-x-2 transition-all"
+                className="w-full py-2.5 glass-pill hover:bg-white/10 text-zinc-200 rounded-xl text-xs font-medium flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
-                <Calendar className="w-4 h-4 text-accent-green" />
+                <Calendar className="w-4 h-4 text-emerald-400" />
                 <span>Export to Apple Calendar (.ics)</span>
               </a>
 
@@ -313,7 +313,7 @@ export function ReminderDetailModal({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full h-11 bg-accent-blue hover:bg-blue-600 active:scale-[0.98] text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
+                className="w-full h-11 glow-button-blue active:scale-[0.98] text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>{saving ? "Saving..." : "Save Changes"}</span>
@@ -323,10 +323,10 @@ export function ReminderDetailModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className={`w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+                className={`w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   confirmDelete
                     ? "bg-red-600 text-white animate-pulse"
-                    : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                    : "glass-pill border-red-500/30 text-red-400 hover:bg-red-500/10"
                 }`}
               >
                 <Trash2 className="w-3.5 h-3.5" />

@@ -99,15 +99,17 @@ export function HistoryView({
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col overflow-hidden px-1 py-2">
+    <div className="w-full max-w-[360px] h-full flex flex-col glass-panel-elevated rounded-[32px] p-4 overflow-hidden">
       {/* Header & Filter Pills */}
-      <div className="pb-3 border-b border-[var(--border)] space-y-2 shrink-0">
+      <div className="pb-3 border-b border-white/10 space-y-2.5 shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <History className="w-4 h-4 text-accent-blue" />
+            <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+              <History className="w-4 h-4" />
+            </div>
             <span>Activity Log</span>
           </h3>
-          <span className="text-xs text-zinc-500">{filteredLogs.length} events</span>
+          <span className="glass-pill px-2.5 py-0.5 rounded-full text-[11px] text-zinc-300 font-semibold">{filteredLogs.length} events</span>
         </div>
 
         {/* Filter chips */}
@@ -125,8 +127,8 @@ export function HistoryView({
               onClick={() => setSelectedActionFilter(chip.id)}
               className={`px-3 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all ${
                 selectedActionFilter === chip.id
-                  ? "bg-accent-blue/20 border-accent-blue text-accent-blue"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  ? "bg-blue-500/25 border-blue-400 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+                  : "glass-pill text-zinc-400 hover:text-white"
               }`}
             >
               {chip.label}
@@ -136,7 +138,7 @@ export function HistoryView({
       </div>
 
       {/* Log list */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
+      <div className="flex-1 overflow-y-auto py-3 space-y-2.5 no-scrollbar">
         {loading ? (
           <div className="py-12 text-center text-xs text-zinc-500">
             Loading activity log...
@@ -161,7 +163,7 @@ export function HistoryView({
             return (
               <div
                 key={log.id}
-                className="p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl flex items-start justify-between space-x-3 text-xs"
+                className="p-3.5 glass-card rounded-2xl flex items-start justify-between space-x-3 text-xs"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2">

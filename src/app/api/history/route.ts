@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { dbRepo } from "@/lib/db-repo";
 
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const reminderId = searchParams.get("reminderId") || undefined;
 
-    const logs = await dbRepo.getActivityLog(session.user.id, reminderId);
+    const logs = await dbRepo.getActivityLog(user.id, reminderId);
     return NextResponse.json({ logs });
   } catch (err: unknown) {
     console.error("Failed to fetch activity logs:", err);
