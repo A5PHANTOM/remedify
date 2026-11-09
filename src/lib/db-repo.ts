@@ -1,5 +1,5 @@
 import { db, schema } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, asc, lte, gte } from "drizzle-orm";
 
 export interface UserRecord {
   id: string;
@@ -25,14 +25,51 @@ export interface WorkspaceRecord {
   createdAt: Date;
 }
 
+export interface ReminderRecord {
+  id: string;
+  userId: string;
+  workspaceId: string;
+  title: string;
+  note: string | null;
+  dueAt: Date;
+  status: "open" | "done";
+  priority: number;
+  repeatRule: "daily" | "weekly" | "monthly" | null;
+  notifiedAt: Date | null;
+  snoozedCount: number;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  workspace?: {
+    name: string;
+    colour: string;
+    emoji: string;
+  };
+}
+
+export interface ActivityLogRecord {
+  id: string;
+  reminderId: string | null;
+  userId: string;
+  action: string;
+  oldValue: any;
+  newValue: any;
+  createdAt: Date;
+}
+
 // In-memory fallback cache for development when DATABASE_URL is not yet provided
 const memoryStore = {
   users: new Map<string, UserRecord>(),
   verificationTokens: new Map<string, { identifier: string; token: string; expires: Date }>(),
   workspaces: new Map<string, WorkspaceRecord>(),
+  reminders: new Map<string, ReminderRecord>(),
+  activityLog: [] as ActivityLogRecord[],
 };
 
 export const dbRepo = {
+  // -------------------------------------------------------------------------
+  // Users & Verification Tokens
+  // -------------------------------------------------------------------------
   async findUserByEmail(email: string): Promise<UserRecord | null> {
     const normalizedEmail = email.toLowerCase().trim();
     if (db) {
@@ -98,12 +135,73 @@ export const dbRepo = {
       memoryStore.users.set(userId, newUser);
     }
 
-    // Auto-create default "Main" workspace for this user
     await this.ensureMainWorkspace(userId);
-
     return newUser;
   },
 
+  async saveVerificationToken(identifier: string, token: string, expires: Date): Promise<void> {
+    const key = `${identifier.toLowerCase().trim()}:${token.trim()}`;
+    if (db) {
+      await db.insert(schema.verificationTokens).values({
+        identifier: identifier.toLowerCase().trim(),
+        token: token.trim(),
+        expires,
+      });
+      return;
+    }
+    memoryStore.verificationTokens.set(key, {
+      identifier: identifier.toLowerCase().trim(),
+      token: token.trim(),
+      expires,
+    });
+  },
+
+  async verifyAndConsumeToken(identifier: string, token: string): Promise<boolean> {
+    const normalizedIdentifier = identifier.toLowerCase().trim();
+    const cleanToken = token.trim();
+
+    if (db) {
+      const records = await db
+        .select()
+        .from(schema.verificationTokens)
+        .where(
+          and(
+            eq(schema.verificationTokens.identifier, normalizedIdentifier),
+            eq(schema.verificationTokens.token, cleanToken)
+          )
+        );
+
+      if (!records[0]) {
+        return false;
+      }
+
+      const isExpired = new Date() > new Date(records[0].expires);
+      await db
+        .delete(schema.verificationTokens)
+        .where(
+          and(
+            eq(schema.verificationTokens.identifier, normalizedIdentifier),
+            eq(schema.verificationTokens.token, cleanToken)
+          )
+        );
+
+      return !isExpired;
+    }
+
+    const key = `${normalizedIdentifier}:${cleanToken}`;
+    const tokenRecord = memoryStore.verificationTokens.get(key);
+    if (!tokenRecord) {
+      return false;
+    }
+
+    const isExpired = new Date() > tokenRecord.expires;
+    memoryStore.verificationTokens.delete(key);
+    return !isExpired;
+  },
+
+  // -------------------------------------------------------------------------
+  // Workspaces
+  // -------------------------------------------------------------------------
   async ensureMainWorkspace(userId: string): Promise<WorkspaceRecord> {
     if (db) {
       const existing = await db
@@ -155,64 +253,321 @@ export const dbRepo = {
     return mainWs;
   },
 
-  async saveVerificationToken(identifier: string, token: string, expires: Date): Promise<void> {
-    const key = `${identifier.toLowerCase().trim()}:${token.trim()}`;
+  async getWorkspaces(userId: string): Promise<WorkspaceRecord[]> {
+    await this.ensureMainWorkspace(userId);
+
     if (db) {
-      await db.insert(schema.verificationTokens).values({
-        identifier: identifier.toLowerCase().trim(),
-        token: token.trim(),
-        expires,
-      });
-      return;
+      const rows = await db
+        .select()
+        .from(schema.workspaces)
+        .where(and(eq(schema.workspaces.userId, userId), eq(schema.workspaces.archived, false)))
+        .orderBy(asc(schema.workspaces.sortOrder), asc(schema.workspaces.createdAt));
+      return rows as unknown as WorkspaceRecord[];
     }
-    memoryStore.verificationTokens.set(key, {
-      identifier: identifier.toLowerCase().trim(),
-      token: token.trim(),
-      expires,
-    });
+
+    return Array.from(memoryStore.workspaces.values())
+      .filter((ws) => ws.userId === userId && !ws.archived)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
   },
 
-  async verifyAndConsumeToken(identifier: string, token: string): Promise<boolean> {
-    const normalizedIdentifier = identifier.toLowerCase().trim();
-    const cleanToken = token.trim();
+  async getWorkspaceById(userId: string, workspaceId: string): Promise<WorkspaceRecord | null> {
+    if (db) {
+      const rows = await db
+        .select()
+        .from(schema.workspaces)
+        .where(and(eq(schema.workspaces.id, workspaceId), eq(schema.workspaces.userId, userId)))
+        .limit(1);
+      return (rows[0] as unknown as WorkspaceRecord) || null;
+    }
+    const ws = memoryStore.workspaces.get(workspaceId);
+    return ws && ws.userId === userId ? ws : null;
+  },
+
+  // -------------------------------------------------------------------------
+  // Reminders
+  // -------------------------------------------------------------------------
+  async getReminders(
+    userId: string,
+    filters?: {
+      workspaceId?: string;
+      status?: "open" | "done" | "all";
+      dueBefore?: Date;
+    }
+  ): Promise<ReminderRecord[]> {
+    const workspaces = await this.getWorkspaces(userId);
+    const wsMap = new Map(workspaces.map((w) => [w.id, w]));
+    const mainWs = workspaces.find((w) => w.isMain);
+
+    const isMainFilter = !filters?.workspaceId || filters.workspaceId === mainWs?.id;
+    const targetStatus = filters?.status || "open";
 
     if (db) {
-      const records = await db
-        .select()
-        .from(schema.verificationTokens)
-        .where(
-          and(
-            eq(schema.verificationTokens.identifier, normalizedIdentifier),
-            eq(schema.verificationTokens.token, cleanToken)
-          )
-        );
+      const conditions = [eq(schema.reminders.userId, userId)];
 
-      if (!records[0]) {
-        return false;
+      if (!isMainFilter && filters?.workspaceId) {
+        conditions.push(eq(schema.reminders.workspaceId, filters.workspaceId));
       }
 
-      const isExpired = new Date() > new Date(records[0].expires);
-      // Clean up token after use (one-time code)
+      if (targetStatus !== "all") {
+        conditions.push(eq(schema.reminders.status, targetStatus));
+      }
+
+      const rows = await db
+        .select()
+        .from(schema.reminders)
+        .where(and(...conditions))
+        .orderBy(asc(schema.reminders.dueAt));
+
+      return (rows as unknown as ReminderRecord[]).map((r) => {
+        const ws = wsMap.get(r.workspaceId);
+        return {
+          ...r,
+          dueAt: new Date(r.dueAt),
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+          completedAt: r.completedAt ? new Date(r.completedAt) : null,
+          notifiedAt: r.notifiedAt ? new Date(r.notifiedAt) : null,
+          workspace: ws ? { name: ws.name, colour: ws.colour, emoji: ws.emoji } : undefined,
+        };
+      });
+    }
+
+    const results: ReminderRecord[] = [];
+    for (const r of memoryStore.reminders.values()) {
+      if (r.userId !== userId) continue;
+      if (!isMainFilter && filters?.workspaceId && r.workspaceId !== filters.workspaceId) continue;
+      if (targetStatus !== "all" && r.status !== targetStatus) continue;
+
+      const ws = wsMap.get(r.workspaceId);
+      results.push({
+        ...r,
+        workspace: ws ? { name: ws.name, colour: ws.colour, emoji: ws.emoji } : undefined,
+      });
+    }
+
+    return results.sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+  },
+
+  async getReminderById(userId: string, reminderId: string): Promise<ReminderRecord | null> {
+    if (db) {
+      const rows = await db
+        .select()
+        .from(schema.reminders)
+        .where(and(eq(schema.reminders.id, reminderId), eq(schema.reminders.userId, userId)))
+        .limit(1);
+      if (!rows[0]) return null;
+      const r = rows[0] as unknown as ReminderRecord;
+      const ws = await this.getWorkspaceById(userId, r.workspaceId);
+      return {
+        ...r,
+        dueAt: new Date(r.dueAt),
+        workspace: ws ? { name: ws.name, colour: ws.colour, emoji: ws.emoji } : undefined,
+      };
+    }
+    const r = memoryStore.reminders.get(reminderId);
+    if (!r || r.userId !== userId) return null;
+    const ws = memoryStore.workspaces.get(r.workspaceId);
+    return {
+      ...r,
+      workspace: ws ? { name: ws.name, colour: ws.colour, emoji: ws.emoji } : undefined,
+    };
+  },
+
+  async createReminder(data: {
+    userId: string;
+    workspaceId: string;
+    title: string;
+    note?: string | null;
+    dueAt: Date;
+    priority?: number;
+    repeatRule?: "daily" | "weekly" | "monthly" | null;
+  }): Promise<ReminderRecord> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const newReminder: ReminderRecord = {
+      id,
+      userId: data.userId,
+      workspaceId: data.workspaceId,
+      title: data.title.trim(),
+      note: data.note?.trim() || null,
+      dueAt: data.dueAt,
+      status: "open",
+      priority: data.priority ?? 0,
+      repeatRule: data.repeatRule || null,
+      notifiedAt: null,
+      snoozedCount: 0,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (db) {
+      await db.insert(schema.reminders).values({
+        id: newReminder.id,
+        userId: newReminder.userId,
+        workspaceId: newReminder.workspaceId,
+        title: newReminder.title,
+        note: newReminder.note,
+        dueAt: newReminder.dueAt,
+        status: newReminder.status,
+        priority: newReminder.priority,
+        repeatRule: newReminder.repeatRule,
+        notifiedAt: null,
+        snoozedCount: 0,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Write activity log
+      await db.insert(schema.activityLog).values({
+        reminderId: id,
+        userId: data.userId,
+        action: "created",
+        oldValue: null,
+        newValue: newReminder,
+        createdAt: now,
+      });
+    } else {
+      memoryStore.reminders.set(id, newReminder);
+      memoryStore.activityLog.push({
+        id: crypto.randomUUID(),
+        reminderId: id,
+        userId: data.userId,
+        action: "created",
+        oldValue: null,
+        newValue: newReminder,
+        createdAt: now,
+      });
+    }
+
+    const ws = await this.getWorkspaceById(data.userId, data.workspaceId);
+    return {
+      ...newReminder,
+      workspace: ws ? { name: ws.name, colour: ws.colour, emoji: ws.emoji } : undefined,
+    };
+  },
+
+  async updateReminder(
+    userId: string,
+    reminderId: string,
+    updates: Partial<ReminderRecord>,
+    action: string = "edited"
+  ): Promise<ReminderRecord | null> {
+    const existing = await this.getReminderById(userId, reminderId);
+    if (!existing) return null;
+
+    const now = new Date();
+    const updated: ReminderRecord = {
+      ...existing,
+      ...updates,
+      updatedAt: now,
+    };
+
+    // If marked as done, stamp completedAt
+    if (updates.status === "done" && existing.status !== "done") {
+      updated.completedAt = now;
+    } else if (updates.status === "open" && existing.status === "done") {
+      updated.completedAt = null;
+    }
+
+    // Reset notifiedAt when snoozed or rescheduled so reminder will notify again
+    if (updates.dueAt && updates.dueAt.getTime() !== existing.dueAt.getTime()) {
+      updated.notifiedAt = null;
+    }
+
+    if (db) {
       await db
-        .delete(schema.verificationTokens)
-        .where(
-          and(
-            eq(schema.verificationTokens.identifier, normalizedIdentifier),
-            eq(schema.verificationTokens.token, cleanToken)
-          )
-        );
+        .update(schema.reminders)
+        .set({
+          title: updated.title,
+          note: updated.note,
+          dueAt: updated.dueAt,
+          status: updated.status,
+          priority: updated.priority,
+          repeatRule: updated.repeatRule,
+          notifiedAt: updated.notifiedAt,
+          snoozedCount: updated.snoozedCount,
+          completedAt: updated.completedAt,
+          workspaceId: updated.workspaceId,
+          updatedAt: now,
+        })
+        .where(and(eq(schema.reminders.id, reminderId), eq(schema.reminders.userId, userId)));
 
-      return !isExpired;
+      await db.insert(schema.activityLog).values({
+        reminderId,
+        userId,
+        action,
+        oldValue: existing,
+        newValue: updated,
+        createdAt: now,
+      });
+    } else {
+      memoryStore.reminders.set(reminderId, updated);
+      memoryStore.activityLog.push({
+        id: crypto.randomUUID(),
+        reminderId,
+        userId,
+        action,
+        oldValue: existing,
+        newValue: updated,
+        createdAt: now,
+      });
     }
 
-    const key = `${normalizedIdentifier}:${cleanToken}`;
-    const tokenRecord = memoryStore.verificationTokens.get(key);
-    if (!tokenRecord) {
-      return false;
+    return updated;
+  },
+
+  async deleteReminder(userId: string, reminderId: string): Promise<boolean> {
+    const existing = await this.getReminderById(userId, reminderId);
+    if (!existing) return false;
+
+    const now = new Date();
+    if (db) {
+      await db.insert(schema.activityLog).values({
+        reminderId,
+        userId,
+        action: "deleted",
+        oldValue: existing,
+        newValue: null,
+        createdAt: now,
+      });
+
+      await db
+        .delete(schema.reminders)
+        .where(and(eq(schema.reminders.id, reminderId), eq(schema.reminders.userId, userId)));
+    } else {
+      memoryStore.activityLog.push({
+        id: crypto.randomUUID(),
+        reminderId,
+        userId,
+        action: "deleted",
+        oldValue: existing,
+        newValue: null,
+        createdAt: now,
+      });
+      memoryStore.reminders.delete(reminderId);
     }
 
-    const isExpired = new Date() > tokenRecord.expires;
-    memoryStore.verificationTokens.delete(key);
-    return !isExpired;
+    return true;
+  },
+
+  async getActivityLog(userId: string, reminderId?: string): Promise<ActivityLogRecord[]> {
+    if (db) {
+      const conditions = [eq(schema.activityLog.userId, userId)];
+      if (reminderId) {
+        conditions.push(eq(schema.activityLog.reminderId, reminderId));
+      }
+      const rows = await db
+        .select()
+        .from(schema.activityLog)
+        .where(and(...conditions))
+        .orderBy(desc(schema.activityLog.createdAt));
+      return rows as unknown as ActivityLogRecord[];
+    }
+
+    return memoryStore.activityLog
+      .filter((log) => log.userId === userId && (!reminderId || log.reminderId === reminderId))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   },
 };
